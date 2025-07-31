@@ -1,22 +1,41 @@
-mod momentum;
+pub mod constants;
+pub mod io;
+pub mod momentum;
+mod parameters;
+mod simulation;
 mod thermal;
+pub mod velocity_set;
 
-type Float = f64;
+use velocity_set::*;
 
-use std::rc::Rc;
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum BoundaryFace {
+    West = 0,
+    East = 1,
+    South = 2,
+    North = 3,
+    Bottom = 4,
+    Top = 5,
+}
 
-pub fn run() {
-    let mut momentum_lattice = Rc::new(momentum::Lattice::new(4, 4, 1.0, 0.1, 0.6));
-    // momentum_lattice.nodes[0].density = 5.0;
-    let thermal_lattice = Rc::new(thermal::Lattice::new(
-        Rc::clone(&momentum_lattice),
-        0.5,
-    ));
+const FACES_2D: [BoundaryFace; 4] = [
+    BoundaryFace::West,
+    BoundaryFace::East,
+    BoundaryFace::South,
+    BoundaryFace::North,
+];
 
-    println!("Momentum lattice created with {} nodes.", thermal_lattice.momentum_lattice.nodes.len());
-    println!("Thermal lattice created with {} thermal nodes.", thermal_lattice.nodes.len());
+const FACES_3D: [BoundaryFace; 6] = [
+    BoundaryFace::West,
+    BoundaryFace::East,
+    BoundaryFace::South,
+    BoundaryFace::North,
+    BoundaryFace::Bottom,
+    BoundaryFace::Top,
+];
 
-    println!("First thermal node: {:#?}", thermal_lattice.nodes[0]);
-    println!();
-    println!("First momentum node: {:#?}", momentum_lattice.nodes[0]);
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum NodeType {
+    Fluid = 0,
+    Solid = 1,
 }

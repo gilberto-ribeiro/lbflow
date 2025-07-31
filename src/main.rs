@@ -1,5 +1,5 @@
-use lbm_tests::run;
+use lbflow::momentum;
 
 fn main() {
-    run();
+    momentum::run();
 }
