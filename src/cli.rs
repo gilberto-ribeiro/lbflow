@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use clap::{Arg, Command};
-use std::num::{NonZero, NonZeroUsize};
 use core_affinity::{get_core_ids, set_for_current};
+use std::num::{NonZero, NonZeroUsize};
 
 pub type LbResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -166,17 +166,22 @@ pub fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
 }
 
 pub fn init_global_pool(num_threads: usize, pin_all_cores: bool) {
-    let cores = get_core_ids().expect("listar cores do sistema");
-
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(num_threads)
-        .start_handler(move |idx| {
-            if pin_all_cores {
-                // Distribui round-robin nos cores disponíveis
-                let core = cores[idx % cores.len()];
-                let _ = set_for_current(core); // Ok se falhar, segue sem affinity
-            }
-        })
-        .build_global()
-        .expect("pool global já foi criada antes?");
+    if pin_all_cores {
+        let cores = get_core_ids().expect("listar cores do sistema");
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .start_handler(move |idx| {
+                if pin_all_cores {
+                    let core = cores[idx % cores.len()];
+                    let _ = set_for_current(core);
+                }
+            })
+            .build_global()
+            .expect("pool global já foi criada antes?");
+    } else {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build_global()
+            .expect("pool global já foi criada antes?");
+    };
 }
