@@ -1,14 +1,18 @@
-use super::{Lattice, Node, Residuals, ShallowNode};
-use crate::constants::*;
-use crate::velocity_set::d2q9::{C, D, Q, W};
+// ------------------------------------------------------------------------------- IMPORTS
+
+use super::{Lattice, Node};
+use crate::prelude::*;
+use crate::velocity_set::d2q9::{C, Q, W};
 
 impl Node {
+    #[allow(dead_code)]
     fn legacy_compute_density(&self) {
         let f = self.get_f();
         let density = f.iter().sum::<Float>();
         self.set_density(density);
     }
 
+    #[allow(dead_code)]
     fn legacy_compute_velocity(&self) {
         let density = self.get_density();
         let f = self.get_f();
@@ -18,11 +22,13 @@ impl Node {
         self.set_velocity(velocity);
     }
 
+    #[allow(dead_code)]
     fn legacy_compute_moments(&self) {
         self.legacy_compute_density();
         self.legacy_compute_velocity();
     }
 
+    #[allow(dead_code)]
     fn legacy_compute_equilibrium(&self, explicit_version: bool) {
         let density = self.get_density();
         let velocity = self.get_velocity();
@@ -60,6 +66,7 @@ impl Node {
         self.set_f_eq(f_eq);
     }
 
+    #[allow(dead_code)]
     fn legacy_compute_bgk_collision(&self, omega: Float, omega_prime: Float) {
         let f = self.get_f();
         let f_eq = self.get_f_eq();
@@ -72,6 +79,7 @@ impl Node {
 }
 
 impl Lattice {
+    #[allow(dead_code)]
     fn legacy_streaming_step(&self) {
         for x in 0..self.n[0] {
             for y in 0..self.n[1] {
@@ -89,69 +97,35 @@ impl Lattice {
             }
         }
     }
-
-    fn legacy_compute_lattice_residuals(&self) -> Residuals {
-        let old_lattice = self
-            .nodes
-            .iter()
-            .map(|node| node.get_shallow_node().clone())
-            .collect::<Vec<ShallowNode>>();
-        let density = self
-            .nodes
-            .iter()
-            .zip(old_lattice.iter())
-            .map(|(node, old_node)| (node.get_density() - old_node.get_density()).powi(2))
-            .sum::<Float>()
-            .sqrt();
-        let velocity_x = self
-            .nodes
-            .iter()
-            .zip(old_lattice.iter())
-            .map(|(node, old_node)| (node.get_velocity()[0] - old_node.get_velocity()[0]).powi(2))
-            .sum::<Float>()
-            .sqrt();
-        let velocity_y = self
-            .nodes
-            .iter()
-            .zip(old_lattice.iter())
-            .map(|(node, old_node)| (node.get_velocity()[1] - old_node.get_velocity()[1]).powi(2))
-            .sum::<Float>()
-            .sqrt();
-        Residuals {
-            density,
-            velocity: vec![velocity_x, velocity_y],
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::constants::DELTA_T;
-    use crate::momentum::Node;
+    use crate::prelude::*;
     use rand::Rng;
 
     #[test]
     fn compare_legacy_compute_bgk_collision() {
-        let legacy_node = Node::test_default(2);
+        let legacy_node = momentum::Node::test_default(2);
 
-        let node = Node::test_default(2);
+        let node = momentum::Node::test_default(2);
 
-        let random_tau: f64 = rand::rng().random_range(0.5..1.0);
+        let tau = 0.5;
 
-        let omega = DELTA_T / random_tau;
+        let omega = DELTA_T / tau;
         let omega_prime = 1.0 - omega;
 
-        let random_f: Vec<f64> = (0..9).map(|_| rand::rng().random_range(0.0..1.0)).collect();
-        let random_f_eq: Vec<f64> = (0..9).map(|_| rand::rng().random_range(0.0..1.0)).collect();
+        let f: Vec<f64> = (0..9).map(|_| rand::rng().random_range(0.0..1.0)).collect();
+        let f_eq: Vec<f64> = (0..9).map(|_| rand::rng().random_range(0.0..1.0)).collect();
 
-        legacy_node.set_f(random_f.clone());
-        legacy_node.set_f_eq(random_f_eq.clone());
+        legacy_node.set_f(f.clone());
+        legacy_node.set_f_eq(f_eq.clone());
 
-        node.set_f(random_f.clone());
-        node.set_f_eq(random_f_eq.clone());
+        node.set_f(f.clone());
+        node.set_f_eq(f_eq.clone());
 
         legacy_node.legacy_compute_bgk_collision(omega, omega_prime);
-        node.compute_bgk_collision(omega, omega_prime);
+        node.compute_bgk_collision();
         let actual = legacy_node.get_f_star();
         let target = node.get_f_star();
 

@@ -1,7 +1,7 @@
-use crate::constants::*;
-
 use super::Node;
-use crate::BoundaryFace;
+use crate::prelude::*;
+
+pub use BoundaryCondition::*;
 
 #[derive(Debug, PartialEq)]
 pub enum BoundaryCondition {
@@ -21,7 +21,7 @@ impl Node {
         &self,
         boundary_face: &BoundaryFace,
         density: &Float,
-        velocity: &Vec<Float>,
+        velocity: &[Float],
     ) {
         let mut f = self.get_f();
         let f_star = self.get_f_star();
@@ -76,10 +76,11 @@ impl Node {
     /// ## 2D
     /// ### West face
     /// ```
-    /// # use std::rc::Rc;
+    /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
     /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::momentum::ConversionFactor;
     /// # use lbflow::BoundaryFace;
     /// let node = Node::new(
     ///     1.0,
@@ -87,7 +88,8 @@ impl Node {
     ///     NodeType::Fluid,
     ///     vec![0, 5],
     ///     vec![0.005, 0.055],
-    ///     Rc::new(VelocitySetParameters::test_default(2))
+    ///     Arc::new(VelocitySetParameters::test_default(2)),
+    ///     Arc::new(ConversionFactor::default()),
     /// );
     ///
     /// //                0    1    2    3    4    5    6    7    8
@@ -101,10 +103,11 @@ impl Node {
     /// ```
     /// ### East face
     /// ```
-    /// # use std::rc::Rc;
+    /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
     /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::momentum::ConversionFactor;
     /// # use lbflow::BoundaryFace;
     /// let node = Node::new(
     ///     1.0,
@@ -112,7 +115,8 @@ impl Node {
     ///     NodeType::Fluid,
     ///     vec![9, 5],
     ///     vec![0.095, 0.055],
-    ///     Rc::new(VelocitySetParameters::test_default(2))
+    ///     Arc::new(VelocitySetParameters::test_default(2)),
+    ///     Arc::new(ConversionFactor::default()),
     /// );
     ///
     /// //                0    1    2    3    4    5    6    7    8
@@ -126,10 +130,11 @@ impl Node {
     /// ```
     /// ### South face
     /// ```
-    /// # use std::rc::Rc;
+    /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
     /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::momentum::ConversionFactor;
     /// # use lbflow::BoundaryFace;
     /// let node = Node::new(
     ///     1.0,
@@ -137,7 +142,8 @@ impl Node {
     ///     NodeType::Fluid,
     ///     vec![9, 5],
     ///     vec![0.095, 0.055],
-    ///     Rc::new(VelocitySetParameters::test_default(2))
+    ///     Arc::new(VelocitySetParameters::test_default(2)),
+    ///     Arc::new(ConversionFactor::default()),
     /// );
     ///
     /// //                0    1    2    3    4    5    6    7    8
@@ -151,10 +157,11 @@ impl Node {
     /// ```
     /// ### North face
     /// ```
-    /// # use std::rc::Rc;
+    /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
     /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::momentum::ConversionFactor;
     /// # use lbflow::BoundaryFace;
     /// let node = Node::new(
     ///     1.0,
@@ -162,7 +169,8 @@ impl Node {
     ///     NodeType::Fluid,
     ///     vec![9, 5],
     ///     vec![0.095, 0.055],
-    ///     Rc::new(VelocitySetParameters::test_default(2))
+    ///     Arc::new(VelocitySetParameters::test_default(2)),
+    ///     Arc::new(ConversionFactor::default()),
     /// );
     ///
     /// //                0    1    2    3    4    5    6    7    8
