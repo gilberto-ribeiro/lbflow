@@ -239,10 +239,7 @@ pub fn load(momentum_parameters: momentum::Parameters) {
     };
 
     let number_of_threads = usize::from(config.number_of_threads);
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(number_of_threads)
-        .build_global()
-        .expect("Failed to create global thread pool");
+    crate::cli::init_global_pool(number_of_threads, config.core_affinity);
 
     match config.mode {
         cli::Mode::Run => run(config, momentum_parameters),

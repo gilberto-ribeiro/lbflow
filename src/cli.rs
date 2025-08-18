@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use clap::{Arg, Command};
 use std::num::{NonZero, NonZeroUsize};
+use core_affinity::{get_core_ids, set_for_current};
 
 pub type LbResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -8,6 +9,7 @@ pub type LbResult<T> = Result<T, Box<dyn std::error::Error>>;
 pub struct Config {
     pub mode: Mode,
     pub number_of_threads: NonZeroUsize,
+    pub core_affinity: bool,
     pub case_name: Option<String>,
     pub write_data: Option<WriteDataMode>,
     pub max_iterations: Option<usize>,
@@ -20,6 +22,7 @@ impl Default for Config {
         Config {
             mode: Mode::Run,
             number_of_threads: NonZero::new(1).unwrap(),
+            core_affinity: false,
             case_name: None,
             write_data: None,
             max_iterations: None,
@@ -66,6 +69,14 @@ pub fn get_args() -> LbResult<clap::ArgMatches> {
                 .help("The number of threads used (min = 1)")
                 .value_parser(clap::value_parser!(NonZeroUsize))
                 .default_value("1")
+                .global(true),
+        )
+        .arg(
+            Arg::new("core_affinity")
+                .short('a')
+                .long("affinity")
+                .help("Set the core affinity")
+                .action(clap::ArgAction::SetTrue)
                 .global(true),
         )
         .subcommand(
@@ -124,12 +135,14 @@ pub fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
     let number_of_threads = *matches
         .get_one::<NonZeroUsize>("number_of_threads")
         .expect("Has 1 as default");
+    let core_affinity = matches.get_flag("core_affinity");
     match matches.subcommand() {
         Some(("run", sub_m)) => {
             let frequency = *sub_m.get_one::<usize>("write_data").unwrap();
             let cfg = Config {
                 mode: Mode::Run,
                 number_of_threads,
+                core_affinity,
                 case_name: sub_m.get_one::<String>("case_name").cloned(),
                 write_data: Some(WriteDataMode::Frequency(frequency)),
                 max_iterations: sub_m.get_one::<usize>("max_iterations").cloned(),
@@ -141,6 +154,7 @@ pub fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
             let cfg = Config {
                 mode: Mode::Post,
                 number_of_threads,
+                core_affinity,
                 node_type: sub_m.get_flag("node_type"),
                 physical_data: sub_m.get_flag("physical_data"),
                 ..Default::default()
@@ -149,4 +163,20 @@ pub fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
         }
         _ => unreachable!("At least one subcommand is required: .subcommand_required(true)"),
     }
+}
+
+pub fn init_global_pool(num_threads: usize, pin_all_cores: bool) {
+    let cores = get_core_ids().expect("listar cores do sistema");
+
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .start_handler(move |idx| {
+            if pin_all_cores {
+                // Distribui round-robin nos cores disponíveis
+                let core = cores[idx % cores.len()];
+                let _ = set_for_current(core); // Ok se falhar, segue sem affinity
+            }
+        })
+        .build_global()
+        .expect("pool global já foi criada antes?");
 }
