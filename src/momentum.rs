@@ -210,12 +210,7 @@ pub fn run(config: Config, momentum_params: Parameters) {
 
     lat.initialize_nodes();
     loop {
-        lat.update_density_and_velocity_step();
-        lat.equilibrium_step();
-        lat.bgk_collision_step();
-        lat.streaming_step();
-        lat.inner_bounce_back_step();
-        lat.boundary_conditions_step();
+        lat.main_steps();
         lat.compute_lattice_residuals();
 
         lat.write_data();

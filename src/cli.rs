@@ -13,6 +13,7 @@ pub struct Config {
     pub case_name: Option<String>,
     pub write_data: Option<WriteDataMode>,
     pub max_iterations: Option<usize>,
+    pub freeze_momentum: bool,
     pub node_type: bool,
     pub physical_data: bool,
 }
@@ -26,6 +27,7 @@ impl Default for Config {
             case_name: None,
             write_data: None,
             max_iterations: None,
+            freeze_momentum: false,
             node_type: false,
             physical_data: false,
         }
@@ -107,6 +109,13 @@ pub fn get_args() -> LbResult<clap::ArgMatches> {
                         .help("The maximum number of iterations")
                         .value_parser(clap::value_parser!(usize))
                         .default_value("100000"),
+                )
+                .arg(
+                    Arg::new("freeze_momentum")
+                        .short('f')
+                        .long("freeze")
+                        .help("Freeze the momentum field calculation")
+                        .action(clap::ArgAction::SetTrue)
                 ),
         )
         .subcommand(
@@ -146,6 +155,7 @@ pub fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
                 case_name: sub_m.get_one::<String>("case_name").cloned(),
                 write_data: Some(WriteDataMode::Frequency(frequency)),
                 max_iterations: sub_m.get_one::<usize>("max_iterations").cloned(),
+                freeze_momentum: sub_m.get_flag("freeze_momentum"),
                 ..Default::default()
             };
             Ok(cfg)

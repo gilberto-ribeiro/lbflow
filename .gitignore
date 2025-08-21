@@ -1,4 +1,7 @@
 /target
+/src/main.rs
+/src/bin
 /data
 /pre_processing
 /post_processing
+/others

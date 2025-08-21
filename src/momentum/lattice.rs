@@ -543,4 +543,15 @@ impl Lattice {
         });
         }
     }
+
+    pub fn main_steps(&self) {
+        if self.get_config().freeze_momentum {
+            self.update_density_and_velocity_step();
+            self.equilibrium_step();
+            self.bgk_collision_step();
+            self.streaming_step();
+            self.inner_bounce_back_step();
+            self.boundary_conditions_step();
+        }
+    }
 }

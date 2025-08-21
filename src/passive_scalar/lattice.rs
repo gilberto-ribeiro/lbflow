@@ -11,6 +11,7 @@ const TOLERANCE_CONCENTRATION: Float = 1e-7;
 
 #[derive(Debug)]
 pub struct Lattice {
+    name: String,
     momentum_lattice: Arc<momentum::Lattice>,
     nodes: Vec<Arc<Node>>,
     velocity_set_parameters: Arc<VelocitySetParameters>,
@@ -158,6 +159,7 @@ impl Lattice {
         });
 
         Lattice {
+            name: params.name.clone(),
             momentum_lattice,
             nodes,
             velocity_set_parameters,
@@ -211,6 +213,10 @@ impl Lattice {
 
     pub fn get_nodes(&self) -> &Vec<Arc<Node>> {
         &self.nodes
+    }
+
+    pub fn get_name(&self) -> &str {
+        &self.name
     }
 }
 
@@ -335,5 +341,14 @@ impl Lattice {
                 .get_config()
                 .get_max_iterations();
         (min_iterations && converged_quantities) || max_iterations
+    }
+
+    pub fn main_steps(&self) {
+        self.update_concentration_step();
+        self.equilibrium_step();
+        self.bgk_collision_step();
+        self.streaming_step();
+        self.inner_anti_bounce_back_step();
+        self.boundary_conditions_step();
     }
 }

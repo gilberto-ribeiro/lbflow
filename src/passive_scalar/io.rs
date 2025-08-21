@@ -13,14 +13,14 @@ impl Lattice {
             print_header: format!(
                 "{} {:>16}",
                 info.print_header,
-                "concentration".cyan().bold()
+                self.get_name().cyan().bold()
             ),
             print_line: format!(
                 "{} {:>16.8e}",
                 info.print_line,
                 self.get_residuals().get_concentration()
             ),
-            write_header: format!("{},{}", info.write_header, "concentration"),
+            write_header: format!("{},{}", info.write_header, self.get_name()),
             write_line: format!(
                 "{},{}",
                 info.write_line,
@@ -66,8 +66,8 @@ impl Lattice {
             std::process::exit(1);
         };
         println!(
-            "\nWriting {} for time step {}.\n",
-            crate::io::DENSITY_FILE.yellow().bold(),
+            "Writing {} for time step {}.\n",
+            self.get_name().yellow().bold(),
             self.get_momentum_lattice()
                 .get_time_step()
                 .to_string()
@@ -90,9 +90,9 @@ impl Lattice {
             .get_number_of_threads();
         let step_path = Arc::new(step_path.as_ref().to_path_buf());
         if number_of_threads == 1 {
-            let path = step_path.join(crate::io::DENSITY_FILE);
+            let path = step_path.join(self.get_name().to_string() + ".csv");
             let mut file = File::create(path)?;
-            writeln!(file, "concentration")?;
+            writeln!(file, "{}", self.get_name())?;
             self.get_nodes().iter().for_each(|node| {
                 let line = format!("{:.8e}", node.get_concentration());
                 writeln!(file, "{line}").unwrap();
@@ -104,10 +104,10 @@ impl Lattice {
                 .par_chunks(chunk_size)
                 .enumerate()
                 .for_each(|(i, chunk)| {
-                    let file_str = format!("concentration_{i}.csv");
+                    let file_str = format!("{}_{}.csv", self.get_name(), i);
                     let path = step_path.join(file_str);
                     let mut file = File::create(path).unwrap();
-                    writeln!(file, "concentration").unwrap();
+                    writeln!(file, "{}", self.get_name()).unwrap();
                     chunk.iter().for_each(|node| {
                         let line = format!("{:.8e}", node.get_concentration());
                         writeln!(file, "{line}").unwrap();

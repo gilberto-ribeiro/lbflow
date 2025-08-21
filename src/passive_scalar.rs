@@ -11,6 +11,7 @@ pub use lattice::Lattice;
 pub use node::Node;
 
 pub struct Parameters {
+    pub name: String,
     pub tau_g: Float,
     pub initial_concentration: Vec<Float>,
     pub velocity_set: VelocitySet,
@@ -91,20 +92,10 @@ pub fn run(
     m_lat.initialize_nodes();
     ps_lat.initialize_nodes();
     loop {
-        m_lat.update_density_and_velocity_step();
-        m_lat.equilibrium_step();
-        m_lat.bgk_collision_step();
-        m_lat.streaming_step();
-        m_lat.inner_bounce_back_step();
-        m_lat.boundary_conditions_step();
+        m_lat.main_steps();
         m_lat.compute_lattice_residuals();
 
-        ps_lat.update_concentration_step();
-        ps_lat.equilibrium_step();
-        ps_lat.bgk_collision_step();
-        ps_lat.streaming_step();
-        ps_lat.inner_anti_bounce_back_step();
-        ps_lat.boundary_conditions_step();
+        ps_lat.main_steps();
         ps_lat.compute_lattice_residuals();
 
         m_lat.write_data();
@@ -143,7 +134,7 @@ pub fn solve(momentum_parameters: momentum::Parameters, passive_scalar_parameter
 
     match config.mode {
         cli::Mode::Run => run(config, momentum_parameters, passive_scalar_parameters),
-        cli::Mode::Post => post::vtk::post_vtk(config, momentum_parameters),
+        cli::Mode::Post => post::vtk::post_vtk(config, momentum_parameters, passive_scalar_parameters),
         // cli::Mode::Post => println!("Post-processing is not implemented for passive scalar yet."),
     }
 }
