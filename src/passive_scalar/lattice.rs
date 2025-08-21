@@ -333,15 +333,14 @@ impl Lattice {
             passive_scalar_residuals.concentration <= TOLERANCE_CONCENTRATION;
         let converged_quantities =
             converged_density && converged_velocity && converged_concentration;
-        // let min_iterations =
-        //     self.get_momentum_lattice().get_time_step() > momentum::lattice::MIN_ITER;
+        let min_iterations =
+            self.get_momentum_lattice().get_time_step() > momentum::lattice::MIN_ITER;
         let max_iterations = self.get_momentum_lattice().get_time_step()
             > self
                 .get_momentum_lattice()
                 .get_config()
                 .get_max_iterations();
-        // (min_iterations && converged_quantities) || max_iterations
-        converged_quantities || max_iterations
+        (min_iterations && converged_quantities) || max_iterations
     }
 
     pub fn main_steps(&self) {

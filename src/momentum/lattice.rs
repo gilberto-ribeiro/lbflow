@@ -5,7 +5,7 @@ use crate::prelude::*;
 use crate::{FACES_2D, FACES_3D};
 use rayon::prelude::*;
 
-pub const MIN_ITER: usize = 50;
+pub const MIN_ITER: usize = 10;
 pub const TOLERANCE_DENSITY: Float = 1e-7;
 pub const TOLERANCE_VELOCITY: Float = 1e-7;
 
@@ -528,10 +528,9 @@ impl Lattice {
             .iter()
             .all(|&u_x| u_x <= TOLERANCE_VELOCITY);
         let converged_quantities = converged_density && converged_velocity;
-        // let min_iterations = self.get_time_step() > MIN_ITER;
+        let min_iterations = self.get_time_step() > MIN_ITER;
         let max_iterations = self.get_time_step() > self.get_config().get_max_iterations();
-        // (min_iterations && converged_quantities) || max_iterations
-        converged_quantities || max_iterations
+        (min_iterations && converged_quantities) || max_iterations
     }
 
     pub fn compute_post_processing(&self) {
