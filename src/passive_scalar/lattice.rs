@@ -11,7 +11,7 @@ const TOLERANCE_CONCENTRATION: Float = 1e-7;
 
 #[derive(Debug)]
 pub struct Lattice {
-    name: String,
+    scalar_name: String,
     momentum_lattice: Arc<momentum::Lattice>,
     nodes: Vec<Arc<Node>>,
     velocity_set_parameters: Arc<VelocitySetParameters>,
@@ -159,7 +159,7 @@ impl Lattice {
         });
 
         Lattice {
-            name: params.name.clone(),
+            scalar_name: params.scalar_name.clone(),
             momentum_lattice,
             nodes,
             velocity_set_parameters,
@@ -215,8 +215,8 @@ impl Lattice {
         &self.nodes
     }
 
-    pub fn get_name(&self) -> &str {
-        &self.name
+    pub fn get_scalar_name(&self) -> &str {
+        &self.scalar_name
     }
 }
 

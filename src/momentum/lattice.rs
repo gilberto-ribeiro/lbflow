@@ -545,7 +545,7 @@ impl Lattice {
     }
 
     pub fn main_steps(&self) {
-        if self.get_config().freeze_momentum {
+        if !self.get_config().freeze_momentum {
             self.update_density_and_velocity_step();
             self.equilibrium_step();
             self.bgk_collision_step();

@@ -60,5 +60,5 @@ pub fn post_vtk(config: Config, momentum_params: momentum::Parameters, passive_s
     let conversion_factor = momentum::ConversionFactor::from(&momentum_params);
     momentum::post::vtk::node_type_vtk(&config, n, &coordinates, &node_types);
     momentum::post::vtk::momentum_vtk(&config, &conversion_factor, n, &coordinates);
-    passive_scalar_vtk(&config, &passive_scalar_params.name);
+    passive_scalar_vtk(&config, &passive_scalar_params.scalar_name);
 }

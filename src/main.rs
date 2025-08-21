@@ -30,7 +30,7 @@ fn main() {
     };
 
     let ps_params = ps::Parameters {
-        name: "concentration".to_string(),
+        scalar_name: "concentration".to_string(),
         tau_g: 0.72221,
         initial_concentration: functions::uniform_concentration(0.0, n.clone()),
         velocity_set: D2Q9,

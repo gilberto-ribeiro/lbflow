@@ -11,7 +11,7 @@ pub use lattice::Lattice;
 pub use node::Node;
 
 pub struct Parameters {
-    pub name: String,
+    pub scalar_name: String,
     pub tau_g: Float,
     pub initial_concentration: Vec<Float>,
     pub velocity_set: VelocitySet,
