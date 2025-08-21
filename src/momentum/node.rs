@@ -1,5 +1,6 @@
 use super::ConversionFactor;
 use crate::prelude::*;
+use crate::velocity_set::VelocityComputation;
 
 // -------------------------------------------------------------------------- STRUCT: Node
 
@@ -851,7 +852,7 @@ impl Node {
             .expect("Boundary face not found")
     }
 
-    pub fn get_velocity_computation(&self) -> Option<fn(Float, Vec<Float>) -> Vec<Float>> {
+    pub fn get_velocity_computation(&self) -> Option<VelocityComputation> {
         self.get_velocity_set_parameters().velocity_computation
     }
 
@@ -1074,13 +1075,13 @@ impl Node {
         let c = self.get_c();
         let w = self.get_w();
         let mut f_eq = Vec::with_capacity(*q);
+        let u_dot_u = velocity.iter().map(|u_x| u_x * u_x).sum::<Float>();
         (0..*q).for_each(|i| {
             let u_dot_c = velocity
                 .iter()
                 .zip(c[i].iter())
                 .map(|(u_x, c_x)| u_x * (*c_x as Float))
                 .sum::<Float>();
-            let u_dot_u = velocity.iter().map(|u_x| u_x * u_x).sum::<Float>();
             f_eq.push(
                 w[i] * density
                     * (1.0 + u_dot_c * CS_2_INV + 0.5 * u_dot_c * u_dot_c * CS_4_INV

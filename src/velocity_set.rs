@@ -11,6 +11,8 @@ use crate::prelude::*;
 use crate::{FACES_2D, FACES_3D};
 use std::collections::HashMap;
 
+pub type VelocityComputation = fn(Float, Vec<Float>) -> Vec<Float>;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VelocitySet {
     D2Q9,
@@ -122,7 +124,7 @@ pub struct VelocitySetParameters {
     pub q_bar: Vec<usize>,
     pub q_faces: HashMap<BoundaryFace, Vec<usize>>,
     pub face_normal_directions: HashMap<BoundaryFace, usize>,
-    pub velocity_computation: Option<fn(Float, Vec<Float>) -> Vec<Float>>,
+    pub velocity_computation: Option<VelocityComputation>,
 }
 
 impl Default for VelocitySetParameters {

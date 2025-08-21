@@ -55,7 +55,7 @@ impl Node {
             .zip(neighbor_velocity.iter())
             .map(|(u_x, nu_x)| 1.5 * u_x - 0.5 * nu_x)
             .collect::<Vec<Float>>();
-        let u_dot_u = velocity.iter().map(|u| u * u).sum::<Float>();
+        let u_dot_u = velocity.iter().map(|u_x| u_x * u_x).sum::<Float>();
         q_faces.iter().for_each(|&i| {
             let i_bar = self.get_opposite_direction(i);
             let u_dot_c = velocity

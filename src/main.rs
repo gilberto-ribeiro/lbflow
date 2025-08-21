@@ -1,9 +1,9 @@
 use lbflow::prelude::*;
 
 fn main() {
-    let n = vec![100, 100];
+    let n = vec![1600, 160];
 
-    let momentum_parameters = momentum::Parameters {
+    let m_params = m::Parameters {
         n: n.clone(),
         tau: 0.9,
         delta_x: 1e-3,
@@ -15,23 +15,33 @@ fn main() {
         velocity_set: D2Q9,
         node_types: functions::only_fluid_nodes(n.clone()),
         boundary_conditions: vec![
-            (West, momentum::bc::NoSlip),
-            (East, momentum::bc::NoSlip),
-            (South, momentum::bc::NoSlip),
-            (
-                North,
-                momentum::bc::BounceBack {
-                    density: 1.0,
-                    velocity: vec![0.1, 0.0],
-                },
-            ),
+            (West, m::bc::AntiBounceBack { density: 1.05 }),
+            (East, m::bc::AntiBounceBack { density: 1.00 }),
+            (South, m::bc::NoSlip),
+            (North, m::bc::NoSlip),
+            // (Bottom, m::bc::NoSlip),
+            // (Top, m::bc::NoSlip),
         ],
-        post_functions: Some(vec![momentum::PostFunction::new(
+        post_functions: Some(vec![m::PostFunction::new(
             "mean_density.csv".to_string(),
             5,
-            momentum::post::compute_mean_density,
+            m::post::compute_mean_density,
         )]),
     };
 
-    momentum::load(momentum_parameters);
+    let ps_params = ps::Parameters {
+        tau_g: 0.9,
+        initial_concentration: functions::uniform_concentration(0.0, n.clone()),
+        velocity_set: D2Q9,
+        boundary_conditions: vec![
+            (West, ps::bc::AntiBounceBack { concentration: 0.0 }),
+            (East, ps::bc::AntiBBNoFlux),
+            (South, ps::bc::AntiBounceBack { concentration: 1.0 }),
+            (North, ps::bc::AntiBounceBack { concentration: 1.0 }),
+            // (Bottom, ps::bc::AntiBounceBack { concentration: 0.0 }),
+            // (Top, ps::bc::AntiBounceBack { concentration: 0.0 }),
+        ],
+    };
+
+    ps::solve(m_params, ps_params);
 }

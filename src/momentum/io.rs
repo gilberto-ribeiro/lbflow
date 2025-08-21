@@ -5,60 +5,70 @@ use crate::prelude::*;
 use colored::*;
 use rayon::prelude::*;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::Path;
 use std::process;
 
 impl Lattice {
-    pub fn print_residuals(&self) {
-        let residuals_density = self.get_residuals().get_density();
-        let binding = self.get_residuals();
-        let residuals_velocity = binding.get_velocity();
-        if self.get_time_step() % 100 == 0 {
-            let directions = ["x", "y", "z"];
-            let mut header = format!(
-                "\n{:>10} {:>16}",
-                "time_step".cyan().bold(),
-                "density".cyan().bold()
-            );
-            residuals_velocity
-                .iter()
-                .zip(directions.iter())
-                .for_each(|(_, x)| {
-                    header.push_str(&format!(" {:>16}", format!("velocity_{x}").cyan().bold()));
-                });
-            println!("{header}\n");
+    pub fn get_residuals_info(&self) -> crate::io::ResidualsInfo {
+        crate::io::ResidualsInfo {
+            print_header: self.print_residuals_header(),
+            print_line: self.print_residuals_line(),
+            write_header: self.write_residuals_header(),
+            write_line: self.write_residuals_line(),
+            time_step: self.get_time_step(),
         }
-        let mut line = format! {"{:>10} {:>16.8e}", self.get_time_step(), residuals_density};
-        residuals_velocity.iter().for_each(|u_x| {
-            line.push_str(&format!(" {u_x:>16.8e}"));
-        });
-        println!("{line}");
     }
 
-    pub fn write_residuals(&self) -> LbResult<()> {
+    fn print_residuals_header(&self) -> String {
+        let binding = self.get_residuals();
+        let residuals_velocity = binding.get_velocity();
+        let directions = ["x", "y", "z"];
+        let mut print_header = format!(
+            "\n{:>10} {:>16}",
+            "time_step".cyan().bold(),
+            "density".cyan().bold()
+        );
+        residuals_velocity
+            .iter()
+            .zip(directions.iter())
+            .for_each(|(_, x)| {
+                print_header.push_str(&format!(" {:>16}", format!("velocity_{x}").cyan().bold()));
+            });
+        print_header
+    }
+
+    fn print_residuals_line(&self) -> String {
         let residuals_density = self.get_residuals().get_density();
         let binding = self.get_residuals();
         let residuals_velocity = binding.get_velocity();
-        let data_path = Path::new(crate::io::DATA_PATH);
-        let path = data_path.join(crate::io::RESIDUALS_FILE);
-        let mut file = OpenOptions::new().create(true).append(true).open(path)?;
-        if self.get_time_step() == 0 {
-            let mut header = String::from("time_step,density");
-            let directions = ["x", "y", "z"];
-            let velocities = (0..*self.get_d())
-                .map(|x| format!("velocity_{}", directions[x]))
-                .collect::<Vec<String>>()
-                .join(",");
-            header = header + "," + &velocities;
-            writeln!(file, "{header}")?;
-        }
-        let mut line = format! {"{},{:.8e}", self.get_time_step(), residuals_density};
+        let mut print_line = format! {"{:>10} {:>16.8e}", self.get_time_step(), residuals_density};
         residuals_velocity.iter().for_each(|u_x| {
-            line.push_str(&format!(",{u_x:.8e}"));
+            print_line.push_str(&format!(" {u_x:>16.8e}"));
         });
-        writeln!(file, "{line}")?;
-        Ok(())
+        print_line
+    }
+
+    fn write_residuals_header(&self) -> String {
+        let mut write_header = String::from("time_step,density");
+        let directions = ["x", "y", "z"];
+        let velocities = (0..*self.get_d())
+            .map(|x| format!("velocity_{}", directions[x]))
+            .collect::<Vec<String>>()
+            .join(",");
+        write_header = write_header + "," + &velocities;
+        write_header
+    }
+
+    fn write_residuals_line(&self) -> String {
+        let residuals_density = self.get_residuals().get_density();
+        let binding = self.get_residuals();
+        let residuals_velocity = binding.get_velocity();
+        let mut write_line = format! {"{},{:.8e}", self.get_time_step(), residuals_density};
+        residuals_velocity.iter().for_each(|u_x| {
+            write_line.push_str(&format!(",{u_x:.8e}"));
+        });
+        write_line
     }
 
     pub fn write_data(&self) {

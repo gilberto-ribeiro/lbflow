@@ -4,8 +4,8 @@ use crate::prelude::*;
 use colored::*;
 use core::panic;
 use regex::Regex;
-use std::fs::{self, File};
-use std::io::Read;
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -21,6 +21,14 @@ pub const NODE_TYPE_VTK_FILE: &str = "node_type.vtk";
 pub const RESIDUALS_GRAPH_FILE: &str = "gr_residuals.gp";
 pub const LIVE_RESIDUALS_GRAPH_FILE: &str = "live_residuals.gp";
 pub const BOUNCE_BACK_MAP_FILE: &str = "map.xyz";
+
+pub struct ResidualsInfo {
+    pub print_header: String,
+    pub print_line: String,
+    pub write_header: String,
+    pub write_line: String,
+    pub time_step: usize,
+}
 
 #[derive(Debug)]
 pub enum WriteDataMode {
@@ -194,4 +202,22 @@ pub fn read_parallel_csv_files<P: AsRef<Path>>(dir: P, prefix: &str) -> LbResult
             }
         })
         .collect())
+}
+
+pub fn print_residuals(info: &ResidualsInfo) {
+    if info.time_step % 100 == 0 {
+        println!("{}\n", info.print_header);
+    }
+    println!("{}", info.print_line);
+}
+
+pub fn write_residuals(info: &ResidualsInfo) -> LbResult<()> {
+    let data_path = Path::new(crate::io::DATA_PATH);
+    let path = data_path.join(crate::io::RESIDUALS_FILE);
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+    if info.time_step == 0 {
+        writeln!(file, "{}", info.write_header)?;
+    }
+    writeln!(file, "{}", info.write_line)?;
+    Ok(())
 }

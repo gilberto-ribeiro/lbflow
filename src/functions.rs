@@ -35,6 +35,17 @@ where
     crate::io::parse_scalar_from_string(data).unwrap()
 }
 
+pub fn from_concentration_file<P>(path: P) -> Vec<Float>
+where
+    P: AsRef<Path>,
+{
+    let data = crate::io::read_csv_file(path).unwrap_or_else(|_| {
+        eprintln!("Error reading the concentration file.");
+        std::process::exit(1);
+    });
+    crate::io::parse_scalar_from_string(data).unwrap()
+}
+
 pub fn from_velocity_file<P>(path: P) -> Vec<Vec<Float>>
 where
     P: AsRef<Path>,
@@ -47,6 +58,10 @@ where
 }
 
 pub fn uniform_density(value: Float, n: Vec<usize>) -> Vec<Float> {
+    uniform_scalar(value, n)
+}
+
+pub fn uniform_concentration(value: Float, n: Vec<usize>) -> Vec<Float> {
     uniform_scalar(value, n)
 }
 

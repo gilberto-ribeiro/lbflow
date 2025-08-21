@@ -1,8 +1,8 @@
 // ------------------------------------------------------------------------------- MODULES
 
 pub mod bc;
-mod io;
-mod lattice;
+pub mod io;
+pub mod lattice;
 mod node;
 pub mod post;
 
@@ -160,7 +160,7 @@ impl ConversionFactor {
         let pressure_conversion_factor =
             density_conversion_factor * velocity_conversion_factor * velocity_conversion_factor;
         let viscosity_conversion_factor = delta_x * delta_x / delta_t;
-        let viscosity = CS_2 * (tau - 0.5);
+        let viscosity = CS_2 * (tau - 0.5 * DELTA_T);
         let physical_viscosity = viscosity_conversion_factor * viscosity;
         ConversionFactor {
             tau,
@@ -198,38 +198,46 @@ impl Default for ConversionFactor {
 
 // ----------------------------------------------------------------------------- FUNCTIONS
 
-pub fn run(config: Config, momentum_parameters: Parameters) {
-    io::case_setup(&config, &momentum_parameters);
-    let lattice = Lattice::new(config, momentum_parameters);
-    lattice.write_coordinates().unwrap_or_else(|e| {
+pub fn run(config: Config, momentum_params: Parameters) {
+    io::case_setup(&config, &momentum_params);
+
+    let lat = Lattice::new(config, momentum_params);
+
+    lat.write_coordinates().unwrap_or_else(|e| {
         eprintln! {"Error while writing the coordinates file: {e}"};
         std::process::exit(1);
     });
-    lattice.initialize_nodes();
+
+    lat.initialize_nodes();
     loop {
-        lattice.update_density_and_velocity_step();
-        lattice.equilibrium_step();
-        lattice.bgk_collision_step();
-        lattice.streaming_step();
-        lattice.inner_bounce_back_step();
-        lattice.boundary_conditions_step();
-        lattice.write_data();
-        lattice.compute_post_processing();
-        lattice.compute_lattice_residuals();
-        lattice.print_residuals();
-        lattice.write_residuals().unwrap_or_else(|e| {
+        lat.update_density_and_velocity_step();
+        lat.equilibrium_step();
+        lat.bgk_collision_step();
+        lat.streaming_step();
+        lat.inner_bounce_back_step();
+        lat.boundary_conditions_step();
+        lat.compute_lattice_residuals();
+
+        lat.write_data();
+        lat.compute_post_processing();
+
+        crate::io::print_residuals(&lat.get_residuals_info());
+        crate::io::write_residuals(&lat.get_residuals_info()).unwrap_or_else(|e| {
             eprintln! {"Error while writing the residuals file: {e}"};
             std::process::exit(1);
         });
-        if lattice.stop_condition() {
+
+        if lat.stop_condition() {
             break;
         };
-        lattice.update_shallow_nodes();
-        lattice.next_time_step();
+
+        lat.update_shallow_nodes();
+
+        lat.next_time_step();
     }
 }
 
-pub fn load(momentum_parameters: momentum::Parameters) {
+pub fn solve(momentum_params: momentum::Parameters) {
     let config = match cli::get_args().and_then(|matches| cli::parse_matches(&matches)) {
         Ok(cfg) => cfg,
         Err(e) => {
@@ -242,7 +250,7 @@ pub fn load(momentum_parameters: momentum::Parameters) {
     crate::cli::init_global_pool(number_of_threads, config.core_affinity);
 
     match config.mode {
-        cli::Mode::Run => run(config, momentum_parameters),
-        cli::Mode::Post => post::vtk::post_vtk(config, momentum_parameters),
+        cli::Mode::Run => run(config, momentum_params),
+        cli::Mode::Post => post::vtk::post_vtk(config, momentum_params),
     }
 }

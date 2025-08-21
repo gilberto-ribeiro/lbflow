@@ -5,9 +5,9 @@ use crate::prelude::*;
 use crate::{FACES_2D, FACES_3D};
 use rayon::prelude::*;
 
-const MIN_ITER: usize = 50;
-const TOLERANCE_DENSITY: Float = 1e-7;
-const TOLERANCE_VELOCITY: Float = 1e-7;
+pub const MIN_ITER: usize = 50;
+pub const TOLERANCE_DENSITY: Float = 1e-7;
+pub const TOLERANCE_VELOCITY: Float = 1e-7;
 
 // ----------------------------------------------------------------------- STRUCT: Lattice
 
@@ -16,6 +16,7 @@ pub struct Lattice {
     nodes: Vec<Arc<Node>>,
     n: Vec<usize>,
     velocity_set_parameters: Arc<VelocitySetParameters>,
+    conversion_factor: Arc<ConversionFactor>,
     fluid_nodes: Vec<Arc<Node>>,
     boundary_nodes: HashMap<BoundaryFace, Vec<Arc<Node>>>,
     bounce_back_nodes: Vec<Arc<Node>>,
@@ -27,18 +28,19 @@ pub struct Lattice {
 }
 
 impl Lattice {
-    pub fn new(config: Config, parameters: Parameters) -> Self {
-        let initial_density = parameters.initial_density;
-        let initial_velocity = parameters.initial_velocity;
-        let velocity_set = parameters.velocity_set;
+    pub fn new(config: Config, params: Parameters) -> Self {
+        let initial_density = &params.initial_density;
+        let initial_velocity = &params.initial_velocity;
+
+        let velocity_set = params.velocity_set;
         println!("Selecting velocity set for the lattice: {velocity_set:?}\n");
         let velocity_set_parameters = Arc::new(velocity_set.get_velocity_set_parameters());
 
         let d = &velocity_set_parameters.d;
         let c = &(velocity_set_parameters.c);
-        let n = parameters.n;
-        let node_types = parameters.node_types;
-        let physical_delta_x = parameters.delta_x;
+        let n = &params.n;
+        let node_types = &params.node_types;
+        let physical_delta_x = params.delta_x;
         let num_nodes = n.iter().product::<usize>();
         if num_nodes != node_types.len() {
             panic!(
@@ -60,13 +62,7 @@ impl Lattice {
             _ => panic!("Unsupported dimension: {d}"),
         };
 
-        let conversion_factor = Arc::new(ConversionFactor::new(
-            parameters.tau,
-            parameters.delta_x,
-            parameters.delta_t,
-            parameters.physical_density,
-            parameters.reference_pressure,
-        ));
+        let conversion_factor = Arc::new(ConversionFactor::from(&params));
 
         println!("Creating lattice with dimensions: {n:?}\n");
         let nodes = (0..num_nodes)
@@ -197,15 +193,16 @@ impl Lattice {
 
         Lattice {
             nodes,
-            n,
+            n: n.to_vec(),
             velocity_set_parameters: Arc::clone(&velocity_set_parameters),
+            conversion_factor,
             fluid_nodes,
             boundary_nodes,
-            boundary_conditions: HashMap::from_iter(parameters.boundary_conditions),
+            boundary_conditions: HashMap::from_iter(params.boundary_conditions),
             bounce_back_nodes,
             residuals: RwLock::new(Residuals::new(0.0, vec![0.0; *d])),
             time_step: RwLock::new(0),
-            post_functions: parameters.post_functions,
+            post_functions: params.post_functions,
             config,
         }
     }
@@ -412,6 +409,10 @@ impl Lattice {
 impl Lattice {
     pub fn get_d(&self) -> &usize {
         &self.velocity_set_parameters.d
+    }
+
+    pub fn get_conversion_factor(&self) -> &Arc<ConversionFactor> {
+        &self.conversion_factor
     }
 }
 
