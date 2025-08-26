@@ -12,6 +12,7 @@ pub use node::Node;
 
 pub struct Parameters {
     pub scalar_name: String,
+    pub collision_operator: CollisionOperator,
     pub tau_g: Float,
     pub initial_concentration: Vec<Float>,
     pub velocity_set: VelocitySet,
@@ -79,7 +80,7 @@ pub fn run(
     momentum_params: momentum::Parameters,
     passive_scalar_params: Parameters,
 ) {
-    momentum::io::case_setup(&config, &momentum_params);
+    momentum::io::case_setup(&momentum_params);
 
     let m_lat = Arc::new(momentum::Lattice::new(config, momentum_params));
     let ps_lat = Lattice::new(passive_scalar_params, Arc::clone(&m_lat));
@@ -134,7 +135,8 @@ pub fn solve(momentum_parameters: momentum::Parameters, passive_scalar_parameter
 
     match config.mode {
         cli::Mode::Run => run(config, momentum_parameters, passive_scalar_parameters),
-        cli::Mode::Post => post::vtk::post_vtk(config, momentum_parameters, passive_scalar_parameters),
-        // cli::Mode::Post => println!("Post-processing is not implemented for passive scalar yet."),
+        cli::Mode::Post => {
+            post::vtk::post_vtk(config, momentum_parameters, passive_scalar_parameters)
+        } // cli::Mode::Post => println!("Post-processing is not implemented for passive scalar yet."),
     }
 }
