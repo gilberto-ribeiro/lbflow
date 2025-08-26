@@ -38,11 +38,13 @@ fn passive_scalar_vtk(config: &Config, prefix: &str) {
         })
         .into_par_iter()
         .for_each(|time_step| {
-            let file_name = format!("output_{time_step:08}.vtk");
+            let case_name = crate::io::get_case_name();
+            let file_name = format!("{case_name}_output_{time_step:08}.vtk");
             let path = Path::new(crate::io::VTK_PATH).join(&file_name);
             let concentrations = read_concentrations(time_step, prefix);
             println!(
-                "Writing {} for time step {}.\n",
+                "Appending {} in {} for time step {}.",
+                prefix.bold().yellow(),
                 file_name.bold().yellow(),
                 time_step.to_string().bold().yellow()
             );
@@ -53,12 +55,16 @@ fn passive_scalar_vtk(config: &Config, prefix: &str) {
         });
 }
 
-pub fn post_vtk(config: Config, momentum_params: momentum::Parameters, passive_scalar_params: passive_scalar::Parameters) {
-    let n = &momentum_params.n;
+pub fn post_vtk(
+    config: Config,
+    momentum_params: momentum::Parameters,
+    passive_scalar_params: passive_scalar::Parameters,
+) {
+    let n = momentum_params.n.clone();
     let dim = n.len();
     let (_, coordinates, node_types) = momentum::post::vtk::read_coordinates_file(dim);
-    let conversion_factor = momentum::ConversionFactor::from(&momentum_params);
-    momentum::post::vtk::node_type_vtk(&config, n, &coordinates, &node_types);
-    momentum::post::vtk::momentum_vtk(&config, &conversion_factor, n, &coordinates);
+    let conversion_factor = momentum::ConversionFactor::from(momentum_params);
+    momentum::post::vtk::node_type_vtk(&config, &n, &coordinates, &node_types);
+    momentum::post::vtk::momentum_vtk(&config, &conversion_factor, &n, &coordinates);
     passive_scalar_vtk(&config, &passive_scalar_params.scalar_name);
 }

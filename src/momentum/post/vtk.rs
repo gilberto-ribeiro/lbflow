@@ -183,12 +183,12 @@ fn write_momentum_vtk<P: AsRef<Path>>(
 }
 
 pub fn post_vtk(config: Config, momentum_params: momentum::Parameters) {
-    let n = &momentum_params.n;
+    let n = momentum_params.n.clone();
     let dim = n.len();
     let (_, coordinates, node_types) = read_coordinates_file(dim);
-    let conversion_factor = momentum::ConversionFactor::from(&momentum_params);
-    node_type_vtk(&config, n, &coordinates, &node_types);
-    momentum_vtk(&config, &conversion_factor, n, &coordinates);
+    let conversion_factor = momentum::ConversionFactor::from(momentum_params);
+    node_type_vtk(&config, &n, &coordinates, &node_types);
+    momentum_vtk(&config, &conversion_factor, &n, &coordinates);
 }
 
 fn compute_physical_pressure(
@@ -224,12 +224,13 @@ pub fn momentum_vtk(
         })
         .into_par_iter()
         .for_each(|time_step| {
-            let file_name = format!("output_{time_step:08}.vtk");
+            let case_name = crate::io::get_case_name();
+            let file_name = format!("{case_name}_output_{time_step:08}.vtk");
             let path = Path::new(crate::io::VTK_PATH).join(&file_name);
             let densities = read_densities(time_step);
             let velocities = read_velocities(time_step);
             println!(
-                "Writing {} for time step {}.\n",
+                "Writing {} for time step {}.",
                 file_name.bold().yellow(),
                 time_step.to_string().bold().yellow()
             );
