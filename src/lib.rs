@@ -9,6 +9,7 @@ pub mod passive_scalar;
 mod post;
 pub mod prelude;
 pub mod velocity_set;
+pub mod kernel;
 
 // ------------------------------------------------------------------------------- IMPORTS
 
@@ -32,4 +33,17 @@ const FACES_3D: [BoundaryFace; 6] = [West, East, South, North, Bottom, Top];
 pub enum NodeType {
     Fluid = 0,
     Solid = 1,
+}
+
+#[derive(Debug)]
+pub enum CollisionOperator {
+    BGK(Float),
+    TRT(Float, Float),
+    MRT(Vec<Float>),
+}
+
+impl Default for CollisionOperator {
+    fn default() -> Self {
+        BGK(0.5)
+    }
 }
