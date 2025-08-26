@@ -83,6 +83,8 @@ const Q_TOP: [usize; 9] = [5, 9, 11, 16, 18, 19, 22, 23, 25];
 
 pub const Q_FACES: [[usize; 9]; 6] = [Q_WEST, Q_EAST, Q_SOUTH, Q_NORTH, Q_BOTTOM, Q_TOP];
 
+pub const MRT_MATRIX: [[Float; Q]; Q] = [[1.0; Q]; Q];
+
 /// # Examples:
 /// ```
 /// # use lbflow::velocity_set::d3q27;
