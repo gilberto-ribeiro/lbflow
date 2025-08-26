@@ -1,6 +1,5 @@
-use super::ConversionFactor;
 use crate::prelude::*;
-use crate::velocity_set::VelocityComputation;
+use crate::velocity_set::VectorComputation;
 
 // -------------------------------------------------------------------------- STRUCT: Node
 
@@ -15,13 +14,13 @@ pub struct Node {
     index: Vec<usize>,
     coordinates: Vec<Float>,
     velocity_set_parameters: Arc<VelocitySetParameters>,
-    conversion_factor: Arc<ConversionFactor>,
     neighbor_nodes: RwLock<Option<HashMap<usize, Arc<Node>>>>,
     bounce_back_neighbor_nodes: RwLock<Option<HashMap<usize, Arc<Node>>>>,
     shallow_node: ShallowNode,
 }
 
 impl Node {
+    #[warn(clippy::too_many_arguments)]
     pub fn new(
         density: Float,
         velocity: Vec<Float>,
@@ -29,7 +28,6 @@ impl Node {
         index: Vec<usize>,
         coordinates: Vec<Float>,
         velocity_set_parameters: Arc<VelocitySetParameters>,
-        conversion_factor: Arc<ConversionFactor>,
     ) -> Self {
         let q = velocity_set_parameters.q;
         Node {
@@ -42,7 +40,6 @@ impl Node {
             index,
             coordinates,
             velocity_set_parameters,
-            conversion_factor,
             neighbor_nodes: RwLock::new(None),
             bounce_back_neighbor_nodes: RwLock::new(None),
             shallow_node: ShallowNode::new(density, velocity.clone()),
@@ -58,7 +55,6 @@ impl Node {
                 vec![3, 7],
                 vec![0.035, 0.075],
                 Arc::new(VelocitySetParameters::test_default(2)),
-                Arc::new(ConversionFactor::default()),
             ),
             3 => Node::new(
                 1.0,
@@ -67,7 +63,6 @@ impl Node {
                 vec![3, 5, 7],
                 vec![0.035, 0.055, 0.075],
                 Arc::new(VelocitySetParameters::test_default(3)),
-                Arc::new(ConversionFactor::default()),
             ),
             _ => panic!("Unsupported dimension: {dim}"),
         }
@@ -79,11 +74,10 @@ impl Default for Node {
         Node::new(
             1.0,
             vec![0.0, 0.0],
-            NodeType::Fluid,
+            Fluid,
             vec![0, 0],
             vec![0.0, 0.0],
             Arc::new(VelocitySetParameters::default()),
-            Arc::new(ConversionFactor::default()),
         )
     }
 }
@@ -852,36 +846,25 @@ impl Node {
             .expect("Boundary face not found")
     }
 
-    pub fn get_velocity_computation(&self) -> Option<VelocityComputation> {
+    pub fn get_velocity_computation(&self) -> Option<VectorComputation> {
         self.get_velocity_set_parameters().velocity_computation
     }
 
     pub fn get_opposite_direction(&self, direction: usize) -> usize {
         self.get_q_bar()[direction]
     }
-}
 
-impl Node {
-    pub fn get_conversion_factor(&self) -> &Arc<ConversionFactor> {
-        &self.conversion_factor
+    pub fn get_mrt_matrix(&self) -> &Vec<Vec<Float>> {
+        &self.get_velocity_set_parameters().mrt_matrix
     }
 
-    pub fn get_tau(&self) -> Float {
-        self.get_conversion_factor().tau
+    pub fn get_mrt_inverse_matrix(&self) -> &Vec<Vec<Float>> {
+        &self.get_velocity_set_parameters().mrt_inverse_matrix
     }
 
-    pub fn get_physical_pressure(&self) -> Float {
-        let density_prime = self.get_density() - LATTICE_DENSITY;
-        let pressure_prime = CS_2 * density_prime;
-        self.get_conversion_factor().reference_pressure
-            + pressure_prime * self.get_conversion_factor().pressure_conversion_factor
-    }
-
-    pub fn get_physical_velocity(&self) -> Vec<Float> {
-        self.get_velocity()
-            .iter()
-            .map(|u_x| u_x * self.get_conversion_factor().velocity_conversion_factor)
-            .collect()
+    pub fn get_mrt_equilibrium_moments_computation(&self) -> Option<VectorComputation> {
+        self.get_velocity_set_parameters()
+            .mrt_equilibrium_moments_computation
     }
 }
 
@@ -1016,7 +999,7 @@ impl Node {
     pub fn compute_velocity(&self, explicit_computation: bool) {
         let f = self.get_f();
         let density = self.get_density();
-        let d = self.get_d();
+        let d = *self.get_d();
         let c = self.get_c();
         match (explicit_computation, self.get_velocity_computation()) {
             (true, Some(velocity_computation)) => {
@@ -1024,8 +1007,8 @@ impl Node {
                 self.set_velocity(velocity);
             }
             (_, _) => {
-                let mut velocity = Vec::with_capacity(*d);
-                (0..*d).for_each(|x| {
+                let mut velocity = Vec::with_capacity(d);
+                (0..d).for_each(|x| {
                     velocity.push(
                         f.iter()
                             .zip(c.iter())
@@ -1069,25 +1052,11 @@ impl Node {
     /// }
     /// ```
     pub fn compute_equilibrium(&self) {
-        let density = self.get_density();
-        let velocity = self.get_velocity();
-        let q = self.get_q();
-        let c = self.get_c();
-        let w = self.get_w();
-        let mut f_eq = Vec::with_capacity(*q);
-        let u_dot_u = velocity.iter().map(|u_x| u_x * u_x).sum::<Float>();
-        (0..*q).for_each(|i| {
-            let u_dot_c = velocity
-                .iter()
-                .zip(c[i].iter())
-                .map(|(u_x, c_x)| u_x * (*c_x as Float))
-                .sum::<Float>();
-            f_eq.push(
-                w[i] * density
-                    * (1.0 + u_dot_c * CS_2_INV + 0.5 * u_dot_c * u_dot_c * CS_4_INV
-                        - 0.5 * u_dot_u * CS_2_INV),
-            );
-        });
+        let f_eq = kernel::equilibrium(
+            self.get_density(),
+            &self.get_velocity(),
+            self.get_velocity_set_parameters(),
+        );
         self.set_f_eq(f_eq);
     }
 
@@ -1111,17 +1080,36 @@ impl Node {
     ///     assert!((a - b).abs() < 1e-12);
     /// }
     /// ```
-    pub fn compute_bgk_collision(&self) {
-        let tau = self.get_tau();
-        let omega = DELTA_T / tau;
-        let omega_prime = 1.0 - omega;
-        let f = self.get_f();
-        let f_eq = self.get_f_eq();
-        let q = self.get_q();
-        let mut f_star = Vec::with_capacity(*q);
-        (0..*q).for_each(|i| {
-            f_star.push(omega_prime * f[i] + omega * f_eq[i]);
-        });
+    pub fn compute_bgk_collision(&self, tau: Float) {
+        let f_star = kernel::bgk_collision(
+            &self.get_f(),
+            &self.get_f_eq(),
+            tau,
+            self.get_velocity_set_parameters(),
+        );
+        self.set_f_star(f_star);
+    }
+
+    pub fn compute_trt_collision(&self, omega_plus: Float, omega_minus: Float) {
+        let f_star = kernel::trt_collision(
+            &self.get_f(),
+            &self.get_f_eq(),
+            omega_plus,
+            omega_minus,
+            self.get_velocity_set_parameters(),
+        );
+        self.set_f_star(f_star);
+    }
+
+    pub fn compute_mrt_collision(&self, relaxation_vector: &[Float]) {
+        let f_star = kernel::mrt_collision(
+            self.get_density(),
+            &self.get_velocity(),
+            &self.get_f(),
+            &self.get_f_eq(),
+            relaxation_vector,
+            self.get_velocity_set_parameters(),
+        );
         self.set_f_star(f_star);
     }
 
@@ -1173,8 +1161,8 @@ impl Node {
     /// assert_eq!(node.get_f(), vec![1.0; 9]);
     /// ```
     pub fn compute_streaming(&self) {
-        let q = self.get_q();
-        let mut f = vec![0.0; *q];
+        let q = *self.get_q();
+        let mut f = vec![0.0; q];
         self.get_neighbor_nodes()
             .iter()
             .for_each(|(i, neighbor_node)| {

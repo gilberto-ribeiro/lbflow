@@ -14,6 +14,7 @@ pub struct Lattice {
     scalar_name: String,
     momentum_lattice: Arc<momentum::Lattice>,
     nodes: Vec<Arc<Node>>,
+    collision_operator: Arc<CollisionOperator>,
     velocity_set_parameters: Arc<VelocitySetParameters>,
     _conversion_factor: Arc<ConversionFactor>,
     fluid_nodes: Vec<Arc<Node>>,
@@ -27,6 +28,7 @@ impl Lattice {
     pub fn new(params: Parameters, momentum_lattice: Arc<momentum::Lattice>) -> Self {
         let initial_concentration = params.initial_concentration;
 
+        let collision_operator = Arc::new(params.collision_operator);
         let velocity_set = params.velocity_set;
         println!("Selecting velocity set for the lattice: {velocity_set:?}\n");
         let velocity_set_parameters = Arc::new(velocity_set.get_velocity_set_parameters());
@@ -162,6 +164,7 @@ impl Lattice {
             scalar_name: params.scalar_name.clone(),
             momentum_lattice,
             nodes,
+            collision_operator: Arc::clone(&collision_operator),
             velocity_set_parameters,
             _conversion_factor: Arc::clone(&conversion_factor),
             fluid_nodes,
@@ -224,6 +227,10 @@ impl Lattice {
     pub fn get_d(&self) -> &usize {
         &self.velocity_set_parameters.d
     }
+
+    pub fn get_collision_operator(&self) -> &Arc<CollisionOperator> {
+        &self.collision_operator
+    }
 }
 
 impl Lattice {
@@ -246,10 +253,18 @@ impl Lattice {
         });
     }
 
-    pub fn bgk_collision_step(&self) {
-        self.get_fluid_nodes().par_iter().for_each(|node| {
-            node.compute_bgk_collision();
-        });
+    pub fn collision_step(&self) {
+        match self.get_collision_operator().as_ref() {
+            BGK(tau_g) => self.get_fluid_nodes().par_iter().for_each(|node| {
+                node.compute_bgk_collision(*tau_g);
+            }),
+            TRT(omega_plus, omega_minus) => self.get_fluid_nodes().par_iter().for_each(|node| {
+                node.compute_trt_collision(*omega_plus, *omega_minus);
+            }),
+            MRT(relaxation_vector) => self.get_fluid_nodes().par_iter().for_each(|node| {
+                node.compute_mrt_collision(relaxation_vector);
+            }),
+        }
     }
 
     pub fn streaming_step(&self) {
@@ -346,7 +361,7 @@ impl Lattice {
     pub fn main_steps(&self) {
         self.update_concentration_step();
         self.equilibrium_step();
-        self.bgk_collision_step();
+        self.collision_step();
         self.streaming_step();
         self.inner_anti_bounce_back_step();
         self.boundary_conditions_step();

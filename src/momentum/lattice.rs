@@ -15,6 +15,7 @@ pub const TOLERANCE_VELOCITY: Float = 1e-7;
 pub struct Lattice {
     nodes: Vec<Arc<Node>>,
     n: Vec<usize>,
+    collision_operator: Arc<CollisionOperator>,
     velocity_set_parameters: Arc<VelocitySetParameters>,
     conversion_factor: Arc<ConversionFactor>,
     fluid_nodes: Vec<Arc<Node>>,
@@ -32,7 +33,9 @@ impl Lattice {
         let initial_density = &params.initial_density;
         let initial_velocity = &params.initial_velocity;
 
+        let collision_operator = Arc::new(params.collision_operator);
         let velocity_set = params.velocity_set;
+        println!("Selecting collision operator for the lattice: {collision_operator:?}\n");
         println!("Selecting velocity set for the lattice: {velocity_set:?}\n");
         let velocity_set_parameters = Arc::new(velocity_set.get_velocity_set_parameters());
 
@@ -62,7 +65,14 @@ impl Lattice {
             _ => panic!("Unsupported dimension: {d}"),
         };
 
-        let conversion_factor = Arc::new(ConversionFactor::from(&params));
+        let conversion_factor = Arc::new(ConversionFactor::new(
+            Arc::clone(&collision_operator),
+            params.velocity_set,
+            params.delta_x,
+            params.delta_t,
+            params.physical_density,
+            params.reference_pressure,
+        ));
 
         println!("Creating lattice with dimensions: {n:?}\n");
         let nodes = (0..num_nodes)
@@ -95,7 +105,6 @@ impl Lattice {
                     index,
                     coordinates,
                     Arc::clone(&velocity_set_parameters),
-                    Arc::clone(&conversion_factor),
                 ))
             })
             .collect::<Vec<Arc<Node>>>();
@@ -194,6 +203,7 @@ impl Lattice {
         Lattice {
             nodes,
             n: n.to_vec(),
+            collision_operator: Arc::clone(&collision_operator),
             velocity_set_parameters: Arc::clone(&velocity_set_parameters),
             conversion_factor,
             fluid_nodes,
@@ -414,6 +424,10 @@ impl Lattice {
     pub fn get_conversion_factor(&self) -> &Arc<ConversionFactor> {
         &self.conversion_factor
     }
+
+    pub fn get_collision_operator(&self) -> &Arc<CollisionOperator> {
+        &self.collision_operator
+    }
 }
 
 impl Lattice {
@@ -437,10 +451,18 @@ impl Lattice {
         });
     }
 
-    pub fn bgk_collision_step(&self) {
-        self.get_fluid_nodes().par_iter().for_each(|node| {
-            node.compute_bgk_collision();
-        });
+    pub fn collision_step(&self) {
+        match self.get_collision_operator().as_ref() {
+            BGK(tau) => self.get_fluid_nodes().par_iter().for_each(|node| {
+                node.compute_bgk_collision(*tau);
+            }),
+            TRT(omega_plus, omega_minus) => self.get_fluid_nodes().par_iter().for_each(|node| {
+                node.compute_trt_collision(*omega_plus, *omega_minus);
+            }),
+            MRT(relaxation_vector) => self.get_fluid_nodes().par_iter().for_each(|node| {
+                node.compute_mrt_collision(relaxation_vector);
+            }),
+        }
     }
 
     pub fn streaming_step(&self) {
@@ -548,7 +570,7 @@ impl Lattice {
         if !self.get_config().freeze_momentum {
             self.update_density_and_velocity_step();
             self.equilibrium_step();
-            self.bgk_collision_step();
+            self.collision_step();
             self.streaming_step();
             self.inner_bounce_back_step();
             self.boundary_conditions_step();

@@ -148,39 +148,44 @@ impl Node {
     }
 
     pub fn compute_equilibrium(&self) {
-        let concentration = self.get_concentration();
-        let velocity = self.get_momentum_node().get_velocity();
-        let q = self.get_q();
-        let c = self.get_c();
-        let w = self.get_w();
-        let mut g_eq = Vec::with_capacity(*q);
-        let u_dot_u = velocity.iter().map(|u_x| u_x * u_x).sum::<Float>();
-        (0..*q).for_each(|i| {
-            let u_dot_c = velocity
-                .iter()
-                .zip(c[i].iter())
-                .map(|(u_x, c_x)| u_x * (*c_x as Float))
-                .sum::<Float>();
-            g_eq.push(
-                w[i] * concentration
-                    * (1.0 + u_dot_c * CS_2_INV + 0.5 * u_dot_c * u_dot_c * CS_4_INV
-                        - 0.5 * u_dot_u * CS_2_INV),
-            );
-        });
+        let g_eq = kernel::equilibrium(
+            self.get_concentration(),
+            &self.get_momentum_node().get_velocity(),
+            self.get_velocity_set_parameters(),
+        );
         self.set_g_eq(g_eq);
     }
 
-    pub fn compute_bgk_collision(&self) {
-        let tau_g = self.get_tau_g();
-        let omega_g = DELTA_T / tau_g;
-        let omega_g_prime = 1.0 - omega_g;
-        let g = self.get_g();
-        let g_eq = self.get_g_eq();
-        let q = self.get_q();
-        let mut g_star = Vec::with_capacity(*q);
-        (0..*q).for_each(|i| {
-            g_star.push(omega_g_prime * g[i] + omega_g * g_eq[i]);
-        });
+    pub fn compute_bgk_collision(&self, tau_g: Float) {
+        let g_star = kernel::bgk_collision(
+            &self.get_g(),
+            &self.get_g_eq(),
+            tau_g,
+            self.get_velocity_set_parameters(),
+        );
+        self.set_g_star(g_star);
+    }
+
+    pub fn compute_trt_collision(&self, omega_plus: Float, omega_minus: Float) {
+        let g_star = kernel::trt_collision(
+            &self.get_g(),
+            &self.get_g_eq(),
+            omega_plus,
+            omega_minus,
+            self.get_velocity_set_parameters(),
+        );
+        self.set_g_star(g_star);
+    }
+
+    pub fn compute_mrt_collision(&self, relaxation_vector: &[Float]) {
+        let g_star = kernel::mrt_collision(
+            self.get_concentration(),
+            &self.get_momentum_node().get_velocity(),
+            &self.get_g(),
+            &self.get_g_eq(),
+            relaxation_vector,
+            self.get_velocity_set_parameters(),
+        );
         self.set_g_star(g_star);
     }
 
