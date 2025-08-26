@@ -1,13 +1,16 @@
 pub use crate::BoundaryFace::{self, *};
+pub use crate::CollisionOperator::{self, *};
 pub use crate::NodeType::{self, *};
 pub use crate::cli::{Config, LbResult};
 pub use crate::constants::*;
 pub use crate::functions;
 pub use crate::io::WriteDataMode;
+pub use crate::kernel;
 pub use crate::momentum;
 pub use crate::momentum as m;
 pub use crate::passive_scalar;
 pub use crate::passive_scalar as ps;
+pub use crate::velocity_set::VectorComputation;
 pub use crate::velocity_set::VelocitySet::{self, *};
 pub use crate::velocity_set::VelocitySetParameters;
 pub use std::collections::HashMap;
