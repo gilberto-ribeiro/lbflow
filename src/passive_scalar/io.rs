@@ -67,7 +67,9 @@ impl Lattice {
         };
         println!(
             "Writing {} for time step {}.\n",
-            (self.get_scalar_name().to_string() + ".csv").yellow().bold(),
+            (self.get_scalar_name().to_string() + ".csv")
+                .yellow()
+                .bold(),
             self.get_momentum_lattice()
                 .get_time_step()
                 .to_string()
