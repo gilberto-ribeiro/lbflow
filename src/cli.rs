@@ -10,7 +10,6 @@ pub struct Config {
     pub mode: Mode,
     pub number_of_threads: NonZeroUsize,
     pub core_affinity: bool,
-    pub case_name: Option<String>,
     pub write_data: Option<WriteDataMode>,
     pub max_iterations: Option<usize>,
     pub freeze_momentum: bool,
@@ -24,7 +23,6 @@ impl Default for Config {
             mode: Mode::Run,
             number_of_threads: NonZero::new(1).unwrap(),
             core_affinity: false,
-            case_name: None,
             write_data: None,
             max_iterations: None,
             freeze_momentum: false,
@@ -37,10 +35,6 @@ impl Default for Config {
 impl Config {
     pub fn get_number_of_threads(&self) -> usize {
         usize::from(self.number_of_threads)
-    }
-
-    pub fn get_case_name(&self) -> &str {
-        self.case_name.as_deref().unwrap_or("unknown")
     }
 
     pub fn get_write_data_mode(&self) -> &WriteDataMode {
@@ -85,14 +79,6 @@ pub fn get_args() -> LbResult<clap::ArgMatches> {
             Command::new("run")
                 .about("Run the simulation")
                 .arg(
-                    Arg::new("case_name")
-                        .short('c')
-                        .long("case-name")
-                        .value_name("CASE")
-                        .help("The name of the case to be simulated")
-                        .required(true),
-                )
-                .arg(
                     Arg::new("write_data")
                         .short('w')
                         .long("write-data")
@@ -115,7 +101,7 @@ pub fn get_args() -> LbResult<clap::ArgMatches> {
                         .short('f')
                         .long("freeze")
                         .help("Freeze the momentum field calculation")
-                        .action(clap::ArgAction::SetTrue)
+                        .action(clap::ArgAction::SetTrue),
                 ),
         )
         .subcommand(
@@ -152,7 +138,6 @@ pub fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
                 mode: Mode::Run,
                 number_of_threads,
                 core_affinity,
-                case_name: sub_m.get_one::<String>("case_name").cloned(),
                 write_data: Some(WriteDataMode::Frequency(frequency)),
                 max_iterations: sub_m.get_one::<usize>("max_iterations").cloned(),
                 freeze_momentum: sub_m.get_flag("freeze_momentum"),
