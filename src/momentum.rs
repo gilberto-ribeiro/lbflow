@@ -10,6 +10,7 @@ pub mod post;
 
 use crate::cli;
 use crate::prelude::*;
+use crate::velocity_set;
 use bc::BoundaryCondition;
 pub use lattice::Lattice;
 pub use node::{Node, ShallowNode};
@@ -19,6 +20,7 @@ pub use post::{PostFunction, PostResult};
 
 pub struct Parameters {
     pub n: Vec<usize>,
+    pub collision_operator: CollisionOperator,
     pub tau: Float,
     pub delta_x: Float,
     pub delta_t: Float,
@@ -36,6 +38,7 @@ impl Default for Parameters {
     fn default() -> Self {
         Parameters {
             n: vec![10, 10],
+            collision_operator: BGK(0.5),
             tau: 0.5,
             delta_x: 0.01,
             delta_t: 0.01,
@@ -130,7 +133,8 @@ impl Residuals {
 
 #[derive(Debug)]
 pub struct ConversionFactor {
-    pub tau: Float,
+    pub collision_operator: Arc<CollisionOperator>,
+    pub velocity_set: VelocitySet,
     pub delta_x: Float,
     pub delta_t: Float,
     pub length_conversion_factor: Float,
@@ -141,13 +145,16 @@ pub struct ConversionFactor {
     pub viscosity_conversion_factor: Float,
     pub physical_density: Float,
     pub reference_pressure: Float,
-    pub viscosity: Float,
-    pub physical_viscosity: Float,
+    pub shear_viscosity: Float,
+    pub bulk_viscosity: Float,
+    pub physical_shear_viscosity: Float,
+    pub physical_bulk_viscosity: Float,
 }
 
 impl ConversionFactor {
     pub fn new(
-        tau: Float,
+        collision_operator: Arc<CollisionOperator>,
+        velocity_set: VelocitySet,
         delta_x: Float,
         delta_t: Float,
         physical_density: Float,
@@ -160,10 +167,55 @@ impl ConversionFactor {
         let pressure_conversion_factor =
             density_conversion_factor * velocity_conversion_factor * velocity_conversion_factor;
         let viscosity_conversion_factor = delta_x * delta_x / delta_t;
-        let viscosity = CS_2 * (tau - 0.5 * DELTA_T);
-        let physical_viscosity = viscosity_conversion_factor * viscosity;
+        let (shear_viscosity, bulk_viscosity) = match collision_operator.as_ref() {
+            BGK(tau) => {
+                let shear_viscosity = CS_2 * (tau - 0.5 * DELTA_T);
+                let bulk_viscosity = 2.0 / 3.0 * shear_viscosity;
+                (shear_viscosity, bulk_viscosity)
+            }
+            TRT(omega_plus, _) => {
+                let shear_viscosity = CS_2 * (1.0 / (omega_plus * DELTA_T) - 0.5);
+                let bulk_viscosity = 2.0 / 3.0 * shear_viscosity; // Confirmar
+                (shear_viscosity, bulk_viscosity)
+            }
+            MRT(relaxation_vector) => {
+                match velocity_set {
+                    D2Q9 => {
+                        let omega_nu = relaxation_vector[7];
+                        let omega_e = relaxation_vector[1];
+                        let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5);
+                        let bulk_viscosity = CS_2 * (1.0 / omega_e - 0.5) - shear_viscosity / 3.0;
+                        (shear_viscosity, bulk_viscosity)
+                    }
+                    D3Q15 => {
+                        let omega_nu = relaxation_vector[9];
+                        let omega_e = relaxation_vector[1];
+                        let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5 * DELTA_T);
+                        let bulk_viscosity = 2.0 / 3.0 * CS_2 * (1.0 / omega_e - 0.5 * DELTA_T);
+                        (shear_viscosity, bulk_viscosity)
+                    }
+                    D3Q19 => {
+                        let omega_nu = relaxation_vector[9];
+                        let omega_e = relaxation_vector[1];
+                        let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5 * DELTA_T);
+                        let bulk_viscosity = 2.0 / 3.0 * CS_2 * (1.0 / omega_e - 0.5 * DELTA_T);
+                        (shear_viscosity, bulk_viscosity)
+                    }
+                    D3Q27 => {
+                        let omega_nu = relaxation_vector[9];
+                        let omega_e = relaxation_vector[1];
+                        let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5 * DELTA_T);
+                        let bulk_viscosity = 2.0 / 3.0 * CS_2 * (1.0 / omega_e - 0.5 * DELTA_T);
+                        (shear_viscosity, bulk_viscosity)
+                    }
+                }
+            }
+        };
+        let physical_shear_viscosity = viscosity_conversion_factor * shear_viscosity;
+        let physical_bulk_viscosity = viscosity_conversion_factor * bulk_viscosity;
         ConversionFactor {
-            tau,
+            collision_operator,
+            velocity_set,
             delta_x,
             delta_t,
             length_conversion_factor,
@@ -174,14 +226,17 @@ impl ConversionFactor {
             viscosity_conversion_factor,
             physical_density,
             reference_pressure,
-            viscosity,
-            physical_viscosity,
+            shear_viscosity,
+            bulk_viscosity,
+            physical_shear_viscosity,
+            physical_bulk_viscosity,
         }
     }
 
-    pub fn from(params: &Parameters) -> Self {
+    pub fn from(params: Parameters) -> Self {
         ConversionFactor::new(
-            params.tau,
+            Arc::new(params.collision_operator),
+            params.velocity_set,
             params.delta_x,
             params.delta_t,
             params.physical_density,
@@ -192,14 +247,14 @@ impl ConversionFactor {
 
 impl Default for ConversionFactor {
     fn default() -> Self {
-        ConversionFactor::new(0.5, 0.01, 0.01, 998.0, 101325.0)
+        ConversionFactor::new(Arc::new(CollisionOperator::default()), VelocitySet::D2Q9, 0.01, 0.01, 998.0, 101325.0)
     }
 }
 
 // ----------------------------------------------------------------------------- FUNCTIONS
 
 pub fn run(config: Config, momentum_params: Parameters) {
-    io::case_setup(&config, &momentum_params);
+    io::case_setup(&momentum_params);
 
     let lat = Lattice::new(config, momentum_params);
 
