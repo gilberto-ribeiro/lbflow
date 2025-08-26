@@ -221,3 +221,12 @@ pub fn write_residuals(info: &ResidualsInfo) -> LbResult<()> {
     writeln!(file, "{}", info.write_line)?;
     Ok(())
 }
+
+pub fn get_case_name() -> String {
+    let exe = std::env::current_exe().unwrap();
+    Path::new(&exe)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(env!("CARGO_MANIFEST_DIR"))
+        .to_string()
+}
