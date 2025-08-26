@@ -255,7 +255,8 @@ impl Lattice {
     }
 }
 
-fn create_script_for_residuals_graph(config: &Config, dim: usize) -> LbResult<()> {
+fn create_script_for_residuals_graph(dim: usize) -> LbResult<()> {
+    let case_name = crate::io::get_case_name();
     let post_processing_path = Path::new(crate::io::POST_PROCESSING_PATH);
     let path = post_processing_path.join(crate::io::RESIDUALS_GRAPH_FILE);
     let mut file = File::create(&path)?;
@@ -286,9 +287,9 @@ set output "fig_{case_name_prefix}_residuals.pdf"
 replot
 set terminal pop
 set output"#,
-        case_name = config.get_case_name(),
+        case_name = case_name.replace("_", "\\\\_"),
         min_tolerance = 1e-7,
-        case_name_prefix = config.get_case_name().replace(" ", "_").to_lowercase(),
+        case_name_prefix = case_name.replace(" ", "_").to_lowercase(),
         velocity_z_str = if dim == 3 {
             ",\\\n\"\" u 1:5 t \"velocity (z)\" w l"
         } else {
@@ -298,7 +299,8 @@ set output"#,
     Ok(())
 }
 
-fn create_script_for_live_residuals_graph(config: &Config, dim: usize) -> LbResult<()> {
+fn create_script_for_live_residuals_graph(dim: usize) -> LbResult<()> {
+    let case_name = crate::io::get_case_name();
     let post_processing_path = Path::new(crate::io::POST_PROCESSING_PATH);
     let path = post_processing_path.join(crate::io::LIVE_RESIDUALS_GRAPH_FILE);
     let mut file = File::create(&path)?;
@@ -329,7 +331,7 @@ plot "../data/residuals.csv" u 1:2 t "density" w l lw 2,\
 pause 1
 }}
 set terminal pop"#,
-        case_name = config.get_case_name(),
+        case_name = case_name.replace("_", "\\\\_"),
         min_tolerance = 1e-7,
         velocity_z_str = if dim == 3 {
             ",\\\n\"\" u 1:5 t \"velocity (z)\" w l lw 2"
@@ -340,7 +342,7 @@ set terminal pop"#,
     Ok(())
 }
 
-pub fn case_setup(config: &Config, momentum_parameters: &super::Parameters) {
+pub fn case_setup(momentum_parameters: &super::Parameters) {
     crate::io::create_case_directories().unwrap_or_else(|e| {
         eprintln! {"Error while creating the case directories: {e}"};
         std::process::exit(1);
@@ -349,11 +351,11 @@ pub fn case_setup(config: &Config, momentum_parameters: &super::Parameters) {
         .velocity_set
         .get_velocity_set_parameters()
         .d;
-    create_script_for_residuals_graph(config, dim).unwrap_or_else(|e| {
+    create_script_for_residuals_graph(dim).unwrap_or_else(|e| {
         eprintln! {"Error while creating the gnuplot script: {e}"};
         std::process::exit(1);
     });
-    create_script_for_live_residuals_graph(config, dim).unwrap_or_else(|e| {
+    create_script_for_live_residuals_graph(dim).unwrap_or_else(|e| {
         eprintln! {"Error while creating the gnuplot script: {e}"};
         std::process::exit(1);
     });
