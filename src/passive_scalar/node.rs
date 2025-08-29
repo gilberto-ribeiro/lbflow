@@ -158,9 +158,11 @@ impl Node {
 
     pub fn compute_bgk_collision(&self, tau_g: Float) {
         let g_star = kernel::bgk_collision(
+            &self.get_momentum_node().get_velocity(),
             &self.get_g(),
             &self.get_g_eq(),
             tau_g,
+            None,
             self.get_velocity_set_parameters(),
         );
         self.set_g_star(g_star);

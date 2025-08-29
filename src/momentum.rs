@@ -10,7 +10,6 @@ pub mod post;
 
 use crate::cli;
 use crate::prelude::*;
-use crate::velocity_set;
 use bc::BoundaryCondition;
 pub use lattice::Lattice;
 pub use node::{Node, ShallowNode};
@@ -21,6 +20,7 @@ pub use post::{PostFunction, PostResult};
 pub struct Parameters {
     pub n: Vec<usize>,
     pub collision_operator: CollisionOperator,
+    pub force: Option<Box<dyn Fn(&Node) -> Vec<Float> + Send + Sync>>,
     pub tau: Float,
     pub delta_x: Float,
     pub delta_t: Float,
@@ -39,6 +39,7 @@ impl Default for Parameters {
         Parameters {
             n: vec![10, 10],
             collision_operator: BGK(0.5),
+            force: None,
             tau: 0.5,
             delta_x: 0.01,
             delta_t: 0.01,

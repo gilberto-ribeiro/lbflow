@@ -1,15 +1,17 @@
 use crate::prelude::*;
 use crate::velocity_set::VectorComputation;
+use std::fmt;
 
 // -------------------------------------------------------------------------- STRUCT: Node
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct Node {
     density: RwLock<Float>,
     velocity: RwLock<Vec<Float>>,
     f: RwLock<Vec<Float>>,
     f_eq: RwLock<Vec<Float>>,
     f_star: RwLock<Vec<Float>>,
+    force: Arc<Option<Box<dyn Fn(&Node) -> Vec<Float> + Send + Sync>>>,
     node_type: NodeType,
     index: Vec<usize>,
     coordinates: Vec<Float>,
@@ -19,11 +21,32 @@ pub struct Node {
     shallow_node: ShallowNode,
 }
 
+impl fmt::Debug for Node {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Node")
+            .field("density", &self.density)
+            .field("velocity", &self.velocity)
+            // .field("force", &"...") // Skipped, or use a placeholder
+            .field("node_type", &self.node_type)
+            .field("index", &self.index)
+            .field("coordinates", &self.coordinates)
+            .field("velocity_set_parameters", &self.velocity_set_parameters)
+            .field("neighbor_nodes", &self.neighbor_nodes)
+            .field(
+                "bounce_back_neighbor_nodes",
+                &self.bounce_back_neighbor_nodes,
+            )
+            .field("shallow_node", &self.shallow_node)
+            .finish()
+    }
+}
+
 impl Node {
     #[warn(clippy::too_many_arguments)]
     pub fn new(
         density: Float,
         velocity: Vec<Float>,
+        force: Arc<Option<Box<dyn Fn(&Node) -> Vec<Float> + Send + Sync>>>,
         node_type: NodeType,
         index: Vec<usize>,
         coordinates: Vec<Float>,
@@ -36,6 +59,7 @@ impl Node {
             f: RwLock::new(vec![0.0; q]),
             f_eq: RwLock::new(vec![0.0; q]),
             f_star: RwLock::new(vec![0.0; q]),
+            force,
             node_type,
             index,
             coordinates,
@@ -51,6 +75,7 @@ impl Node {
             2 => Node::new(
                 1.0,
                 vec![0.0, 0.0],
+                Arc::new(None),
                 Fluid,
                 vec![3, 7],
                 vec![0.035, 0.075],
@@ -59,6 +84,7 @@ impl Node {
             3 => Node::new(
                 1.0,
                 vec![0.0, 0.0, 0.0],
+                Arc::new(None),
                 Fluid,
                 vec![3, 5, 7],
                 vec![0.035, 0.055, 0.075],
@@ -74,6 +100,7 @@ impl Default for Node {
         Node::new(
             1.0,
             vec![0.0, 0.0],
+            Arc::new(None),
             Fluid,
             vec![0, 0],
             vec![0.0, 0.0],
@@ -866,6 +893,10 @@ impl Node {
         self.get_velocity_set_parameters()
             .mrt_equilibrium_moments_computation
     }
+
+    fn get_force(&self) -> Option<Vec<Float>> {
+        self.force.as_ref().as_ref().map(|force_fn| force_fn(self))
+    }
 }
 
 impl Node {
@@ -1001,11 +1032,8 @@ impl Node {
         let density = self.get_density();
         let d = *self.get_d();
         let c = self.get_c();
-        match (explicit_computation, self.get_velocity_computation()) {
-            (true, Some(velocity_computation)) => {
-                let velocity = velocity_computation(density, f);
-                self.set_velocity(velocity);
-            }
+        let mut velocity = match (explicit_computation, self.get_velocity_computation()) {
+            (true, Some(velocity_computation)) => velocity_computation(density, f),
             (_, _) => {
                 let mut velocity = Vec::with_capacity(d);
                 (0..d).for_each(|x| {
@@ -1017,9 +1045,16 @@ impl Node {
                             / density,
                     );
                 });
-                self.set_velocity(velocity);
+                velocity
             }
-        }
+        };
+        if let Some(force) = self.get_force() {
+            velocity
+                .iter_mut()
+                .zip(force.iter())
+                .for_each(|(u_x, f_x)| *u_x += 0.5 * DELTA_T * f_x / density);
+        };
+        self.set_velocity(velocity);
     }
 
     /// $$ f\_{i}^{\text{eq}} = w\_{i}\rho\left[1+\frac{\mathbf{u}\cdot\mathbf{c}\_{i}}{c\_{s}^{2}}+\frac{\left(\mathbf{u}\cdot\mathbf{c}\_{i}\right)^{2}}{2 c\_{s}^{4}}-\frac{\mathbf{u}\cdot\mathbf{u}}{2 c\_{s}^{2}}\right] $$
@@ -1082,9 +1117,11 @@ impl Node {
     /// ```
     pub fn compute_bgk_collision(&self, tau: Float) {
         let f_star = kernel::bgk_collision(
+            &self.get_velocity(),
             &self.get_f(),
             &self.get_f_eq(),
             tau,
+            self.get_force().as_ref().map(|v| v.as_slice()),
             self.get_velocity_set_parameters(),
         );
         self.set_f_star(f_star);

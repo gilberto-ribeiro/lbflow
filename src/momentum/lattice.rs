@@ -33,6 +33,7 @@ impl Lattice {
         let initial_density = &params.initial_density;
         let initial_velocity = &params.initial_velocity;
 
+        let force = Arc::new(params.force);
         let collision_operator = Arc::new(params.collision_operator);
         let velocity_set = params.velocity_set;
         println!("Selecting collision operator for the lattice: {collision_operator:?}\n");
@@ -101,6 +102,7 @@ impl Lattice {
                 Arc::new(Node::new(
                     density,
                     velocity,
+                    Arc::clone(&force),
                     node_type,
                     index,
                     coordinates,
