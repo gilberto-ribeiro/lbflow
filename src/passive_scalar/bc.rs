@@ -5,7 +5,7 @@ pub use BoundaryCondition::*;
 
 #[derive(Debug, PartialEq)]
 pub enum BoundaryCondition {
-    AntiBounceBack { concentration: Float },
+    AntiBounceBack { scalar_value: Float },
     AntiBBNoFlux,
     Periodic,
 }
@@ -14,7 +14,7 @@ impl Node {
     pub fn compute_anti_bounce_back_bc(
         &self,
         boundary_face: &BoundaryFace,
-        concentration: &Float,
+        scalar_value: &Float,
         velocity: Option<&[Float]>,
     ) {
         let mut g = self.get_g();
@@ -32,7 +32,7 @@ impl Node {
                 .map(|(u_x, c_x)| u_x * (*c_x as Float))
                 .sum::<Float>();
             let g_eq = w[i]
-                * concentration
+                * scalar_value
                 * (1.0 + u_dot_c * CS_2_INV + 0.5 * u_dot_c * u_dot_c * CS_4_INV
                     - 0.5 * u_dot_u * CS_2_INV);
             g[i_bar] = -g_star[i] + 2.0 * g_eq;
@@ -41,7 +41,7 @@ impl Node {
     }
 
     pub fn compute_no_flux_bc(&self, boundary_face: &BoundaryFace, velocity: Option<&[Float]>) {
-        self.compute_anti_bounce_back_bc(boundary_face, &self.get_concentration(), velocity);
+        self.compute_anti_bounce_back_bc(boundary_face, &self.get_scalar_value(), velocity);
     }
 
     fn get_wall_velocity(
