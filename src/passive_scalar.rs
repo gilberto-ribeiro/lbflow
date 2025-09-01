@@ -13,30 +13,31 @@ pub use node::Node;
 pub struct Parameters {
     pub scalar_name: String,
     pub collision_operator: CollisionOperator,
+    pub source_value: Option<Box<dyn Fn(&Node) -> Float + Send + Sync>>,
     pub tau_g: Float,
-    pub initial_concentration: Vec<Float>,
+    pub initial_scalar_value: Vec<Float>,
     pub velocity_set: VelocitySet,
     pub boundary_conditions: Vec<(BoundaryFace, BoundaryCondition)>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Residuals {
-    pub concentration: Float,
+    pub scalar_value: Float,
 }
 
 impl Residuals {
-    pub fn new(concentration: Float) -> Self {
-        Residuals { concentration }
+    pub fn new(scalar_value: Float) -> Self {
+        Residuals { scalar_value }
     }
 }
 
 impl Residuals {
-    pub fn get_concentration(&self) -> Float {
-        self.concentration
+    pub fn get_scalar_value(&self) -> Float {
+        self.scalar_value
     }
 
-    pub fn set_concentration(&mut self, concentration: Float) {
-        self.concentration = concentration;
+    pub fn set_scalar_value(&mut self, scalar_value: Float) {
+        self.scalar_value = scalar_value;
     }
 }
 
@@ -137,6 +138,75 @@ pub fn solve(momentum_parameters: momentum::Parameters, passive_scalar_parameter
         cli::Mode::Run => run(config, momentum_parameters, passive_scalar_parameters),
         cli::Mode::Post => {
             post::vtk::post_vtk(config, momentum_parameters, passive_scalar_parameters)
-        } // cli::Mode::Post => println!("Post-processing is not implemented for passive scalar yet."),
+        }
+    }
+}
+
+pub fn run_vec(
+    config: Config,
+    momentum_params: momentum::Parameters,
+    passive_scalar_params_vec: Vec<Parameters>,
+) {
+    momentum::io::case_setup(&momentum_params);
+
+    let m_lat = Arc::new(momentum::Lattice::new(config, momentum_params));
+    let ps_lat_vec = lattice::LatticeVec::new(passive_scalar_params_vec, Arc::clone(&m_lat));
+
+    m_lat.write_coordinates().unwrap_or_else(|e| {
+        eprintln! {"Error while writing the coordinates file: {e}"};
+        std::process::exit(1);
+    });
+
+    m_lat.initialize_nodes();
+    ps_lat_vec.initialize_nodes();
+    loop {
+        m_lat.main_steps();
+        m_lat.compute_lattice_residuals();
+
+        ps_lat_vec.main_steps();
+        ps_lat_vec.compute_lattice_residuals();
+
+        m_lat.write_data();
+        ps_lat_vec.write_data();
+
+        m_lat.compute_post_processing();
+
+        crate::io::print_residuals(&ps_lat_vec.get_residuals_info());
+        crate::io::write_residuals(&ps_lat_vec.get_residuals_info()).unwrap_or_else(|e| {
+            eprintln! {"Error while writing the residuals file: {e}"};
+            std::process::exit(1);
+        });
+
+        if ps_lat_vec.stop_condition() {
+            break;
+        };
+
+        m_lat.update_shallow_nodes();
+        ps_lat_vec.update_shallow_nodes();
+
+        m_lat.next_time_step();
+    }
+}
+
+pub fn solve_vec(
+    momentum_parameters: momentum::Parameters,
+    passive_scalar_parameters_vec: Vec<Parameters>,
+) {
+    let config = match cli::get_args().and_then(|matches| cli::parse_matches(&matches)) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    };
+
+    let number_of_threads = usize::from(config.number_of_threads);
+    crate::cli::init_global_pool(number_of_threads, config.core_affinity);
+
+    match config.mode {
+        cli::Mode::Run => run_vec(config, momentum_parameters, passive_scalar_parameters_vec),
+        cli::Mode::Post => {
+            post::vtk::post_vtk_vec(config, momentum_parameters, passive_scalar_parameters_vec)
+        }
     }
 }
