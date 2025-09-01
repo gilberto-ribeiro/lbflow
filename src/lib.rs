@@ -4,12 +4,12 @@ mod cli;
 pub mod constants;
 pub mod functions;
 mod io;
+pub mod kernel;
 pub mod momentum;
 pub mod passive_scalar;
 mod post;
 pub mod prelude;
 pub mod velocity_set;
-pub mod kernel;
 
 // ------------------------------------------------------------------------------- IMPORTS
 
