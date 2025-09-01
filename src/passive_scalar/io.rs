@@ -18,13 +18,13 @@ impl Lattice {
             print_line: format!(
                 "{} {:>16.8e}",
                 info.print_line,
-                self.get_residuals().get_concentration()
+                self.get_residuals().get_scalar_value()
             ),
             write_header: format!("{},{}", info.write_header, self.get_scalar_name()),
             write_line: format!(
                 "{},{:.8e}",
                 info.write_line,
-                self.get_residuals().get_concentration()
+                self.get_residuals().get_scalar_value()
             ),
             time_step: info.time_step,
         }
@@ -76,13 +76,13 @@ impl Lattice {
                 .yellow()
                 .bold()
         );
-        if let Err(e) = self.write_concentration(&step_path) {
-            eprintln!("Error while writing the concentration file: {e}.");
+        if let Err(e) = self.write_scalar(&step_path) {
+            eprintln!("Error while writing the scalar file: {e}.");
             std::process::exit(1);
         };
     }
 
-    fn write_concentration<P>(&self, step_path: P) -> LbResult<()>
+    fn write_scalar<P>(&self, step_path: P) -> LbResult<()>
     where
         P: AsRef<Path>,
     {
@@ -96,7 +96,7 @@ impl Lattice {
             let mut file = File::create(path)?;
             writeln!(file, "{}", self.get_scalar_name())?;
             self.get_nodes().iter().for_each(|node| {
-                let line = format!("{:.8e}", node.get_concentration());
+                let line = format!("{:.8e}", node.get_scalar_value());
                 writeln!(file, "{line}").unwrap();
             });
         } else if number_of_threads > 1 {
@@ -111,11 +111,54 @@ impl Lattice {
                     let mut file = File::create(path).unwrap();
                     writeln!(file, "{}", self.get_scalar_name()).unwrap();
                     chunk.iter().for_each(|node| {
-                        let line = format!("{:.8e}", node.get_concentration());
+                        let line = format!("{:.8e}", node.get_scalar_value());
                         writeln!(file, "{line}").unwrap();
                     });
                 });
         }
         Ok(())
+    }
+}
+
+impl passive_scalar::lattice::LatticeVec {
+    pub fn get_residuals_info(&self) -> crate::io::ResidualsInfo {
+        let momentum_info = self.get_momentum_lattice().get_residuals_info();
+        let passive_scalar_print_header = self
+            .get_passive_scalar_lattices()
+            .iter()
+            .map(|lattice| format!(" {:>16}", lattice.get_scalar_name().cyan().bold()))
+            .collect::<Vec<String>>()
+            .join("");
+        let passive_scalar_print_line = self
+            .get_passive_scalar_lattices()
+            .iter()
+            .map(|lattice| format!(" {:>16.8e}", lattice.get_residuals().get_scalar_value()))
+            .collect::<Vec<String>>()
+            .join("");
+        let passive_scalar_write_header = self
+            .get_passive_scalar_lattices()
+            .iter()
+            .map(|lattice| format!(",{}", lattice.get_scalar_name()))
+            .collect::<Vec<String>>()
+            .join("");
+        let passive_scalar_write_line = self
+            .get_passive_scalar_lattices()
+            .iter()
+            .map(|lattice| format!(",{:.8e}", lattice.get_residuals().get_scalar_value()))
+            .collect::<Vec<String>>()
+            .join("");
+        crate::io::ResidualsInfo {
+            print_header: format!(
+                "{} {}",
+                momentum_info.print_header, passive_scalar_print_header,
+            ),
+            print_line: format!("{} {}", momentum_info.print_line, passive_scalar_print_line,),
+            write_header: format!(
+                "{}{}",
+                momentum_info.write_header, passive_scalar_write_header
+            ),
+            write_line: format!("{}{}", momentum_info.write_line, passive_scalar_write_line),
+            time_step: momentum_info.time_step,
+        }
     }
 }
