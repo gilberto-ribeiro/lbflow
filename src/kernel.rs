@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 pub fn equilibrium(
-    dens_conc: Float,
+    value: Float,
     velocity: &[Float],
     vel_set_params: &VelocitySetParameters,
 ) -> Vec<Float> {
@@ -17,7 +17,7 @@ pub fn equilibrium(
             .map(|(u_x, c_x)| u_x * (*c_x as Float))
             .sum::<Float>();
         f_eq.push(
-            w[i] * dens_conc
+            w[i] * value
                 * (1.0 + u_dot_c * CS_2_INV + 0.5 * u_dot_c * u_dot_c * CS_4_INV
                     - 0.5 * u_dot_u * CS_2_INV),
         );
@@ -26,11 +26,9 @@ pub fn equilibrium(
 }
 
 pub fn bgk_collision(
-    velocity: &[Float],
     f: &[Float],
     f_eq: &[Float],
     tau: Float,
-    force: Option<&[Float]>,
     vel_set_params: &VelocitySetParameters,
 ) -> Vec<Float> {
     let q = vel_set_params.get_q();
@@ -40,15 +38,6 @@ pub fn bgk_collision(
     (0..q).for_each(|i| {
         f_star.push(omega_prime * f[i] + omega * f_eq[i]);
     });
-    if let Some(force) = force {
-        let source_term = kernel::source_term(velocity, force, tau, vel_set_params);
-        f_star
-            .iter_mut()
-            .zip(source_term.iter())
-            .for_each(|(f_star_i, source_term_i)| {
-                *f_star_i += *source_term_i;
-            });
-    };
     f_star
 }
 
@@ -76,7 +65,7 @@ pub fn trt_collision(
 }
 
 pub fn mrt_collision(
-    dens_conc: Float,
+    value: Float,
     velocity: &[Float],
     f: &[Float],
     f_eq: &[Float],
@@ -101,7 +90,7 @@ pub fn mrt_collision(
     });
     match vel_set_params.get_mrt_equilibrium_moments_computation() {
         Some(&mrt_equilibrium_moments_computation) => {
-            m_eq = mrt_equilibrium_moments_computation(dens_conc, velocity.to_vec());
+            m_eq = mrt_equilibrium_moments_computation(value, velocity.to_vec());
         }
         None => {
             (0..q).for_each(|k| {
@@ -130,7 +119,7 @@ pub fn mrt_collision(
     f_star
 }
 
-pub fn source_term(
+pub fn momentum_source_term(
     velocity: &[Float],
     force: &[Float],
     tau: Float,
@@ -160,6 +149,21 @@ pub fn source_term(
                     })
                     .sum::<Float>(),
         );
+    });
+    source_term
+}
+
+pub fn passive_scalar_source_term(
+    heat: Float,
+    tau_g: Float,
+    vel_set_params: &VelocitySetParameters,
+) -> Vec<Float> {
+    let q = vel_set_params.get_q();
+    let w = vel_set_params.get_w();
+    let coeff = 1.0 - 0.5 / tau_g;
+    let mut source_term = Vec::with_capacity(q);
+    (0..q).for_each(|i| {
+        source_term.push(coeff * w[i] * heat);
     });
     source_term
 }
