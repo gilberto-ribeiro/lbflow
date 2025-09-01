@@ -179,38 +179,36 @@ impl ConversionFactor {
                 let bulk_viscosity = 2.0 / 3.0 * shear_viscosity; // Confirmar
                 (shear_viscosity, bulk_viscosity)
             }
-            MRT(relaxation_vector) => {
-                match velocity_set {
-                    D2Q9 => {
-                        let omega_nu = relaxation_vector[7];
-                        let omega_e = relaxation_vector[1];
-                        let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5);
-                        let bulk_viscosity = CS_2 * (1.0 / omega_e - 0.5) - shear_viscosity / 3.0;
-                        (shear_viscosity, bulk_viscosity)
-                    }
-                    D3Q15 => {
-                        let omega_nu = relaxation_vector[9];
-                        let omega_e = relaxation_vector[1];
-                        let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5 * DELTA_T);
-                        let bulk_viscosity = 2.0 / 3.0 * CS_2 * (1.0 / omega_e - 0.5 * DELTA_T);
-                        (shear_viscosity, bulk_viscosity)
-                    }
-                    D3Q19 => {
-                        let omega_nu = relaxation_vector[9];
-                        let omega_e = relaxation_vector[1];
-                        let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5 * DELTA_T);
-                        let bulk_viscosity = 2.0 / 3.0 * CS_2 * (1.0 / omega_e - 0.5 * DELTA_T);
-                        (shear_viscosity, bulk_viscosity)
-                    }
-                    D3Q27 => {
-                        let omega_nu = relaxation_vector[9];
-                        let omega_e = relaxation_vector[1];
-                        let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5 * DELTA_T);
-                        let bulk_viscosity = 2.0 / 3.0 * CS_2 * (1.0 / omega_e - 0.5 * DELTA_T);
-                        (shear_viscosity, bulk_viscosity)
-                    }
+            MRT(relaxation_vector) => match velocity_set {
+                D2Q9 => {
+                    let omega_nu = relaxation_vector[7];
+                    let omega_e = relaxation_vector[1];
+                    let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5);
+                    let bulk_viscosity = CS_2 * (1.0 / omega_e - 0.5) - shear_viscosity / 3.0;
+                    (shear_viscosity, bulk_viscosity)
                 }
-            }
+                D3Q15 => {
+                    let omega_nu = relaxation_vector[9];
+                    let omega_e = relaxation_vector[1];
+                    let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5 * DELTA_T);
+                    let bulk_viscosity = 2.0 / 3.0 * CS_2 * (1.0 / omega_e - 0.5 * DELTA_T);
+                    (shear_viscosity, bulk_viscosity)
+                }
+                D3Q19 => {
+                    let omega_nu = relaxation_vector[9];
+                    let omega_e = relaxation_vector[1];
+                    let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5 * DELTA_T);
+                    let bulk_viscosity = 2.0 / 3.0 * CS_2 * (1.0 / omega_e - 0.5 * DELTA_T);
+                    (shear_viscosity, bulk_viscosity)
+                }
+                D3Q27 => {
+                    let omega_nu = relaxation_vector[9];
+                    let omega_e = relaxation_vector[1];
+                    let shear_viscosity = CS_2 * (1.0 / omega_nu - 0.5 * DELTA_T);
+                    let bulk_viscosity = 2.0 / 3.0 * CS_2 * (1.0 / omega_e - 0.5 * DELTA_T);
+                    (shear_viscosity, bulk_viscosity)
+                }
+            },
         };
         let physical_shear_viscosity = viscosity_conversion_factor * shear_viscosity;
         let physical_bulk_viscosity = viscosity_conversion_factor * bulk_viscosity;
@@ -248,7 +246,14 @@ impl ConversionFactor {
 
 impl Default for ConversionFactor {
     fn default() -> Self {
-        ConversionFactor::new(Arc::new(CollisionOperator::default()), VelocitySet::D2Q9, 0.01, 0.01, 998.0, 101325.0)
+        ConversionFactor::new(
+            Arc::new(CollisionOperator::default()),
+            VelocitySet::D2Q9,
+            0.01,
+            0.01,
+            998.0,
+            101325.0,
+        )
     }
 }
 
