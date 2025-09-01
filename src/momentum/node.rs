@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::velocity_set::VectorComputation;
-use std::fmt;
+use std::fmt::{self, Debug};
 
 // -------------------------------------------------------------------------- STRUCT: Node
 
@@ -17,32 +17,28 @@ pub struct Node {
     coordinates: Vec<Float>,
     velocity_set_parameters: Arc<VelocitySetParameters>,
     neighbor_nodes: RwLock<Option<HashMap<usize, Arc<Node>>>>,
+    scalar_nodes: RwLock<Option<HashMap<String, Arc<passive_scalar::Node>>>>,
     bounce_back_neighbor_nodes: RwLock<Option<HashMap<usize, Arc<Node>>>>,
     shallow_node: ShallowNode,
 }
 
-impl fmt::Debug for Node {
+impl Debug for Node {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Node")
-            .field("density", &self.density)
-            .field("velocity", &self.velocity)
-            // .field("force", &"...") // Skipped, or use a placeholder
+            .field("density", &self.get_density())
+            .field("velocity", &self.get_velocity())
+            .field("f", &self.get_f())
+            .field("f_eq", &self.get_f_eq())
+            .field("f_star", &self.get_f_star())
+            .field("force", &self.get_force())
             .field("node_type", &self.node_type)
             .field("index", &self.index)
             .field("coordinates", &self.coordinates)
-            .field("velocity_set_parameters", &self.velocity_set_parameters)
-            .field("neighbor_nodes", &self.neighbor_nodes)
-            .field(
-                "bounce_back_neighbor_nodes",
-                &self.bounce_back_neighbor_nodes,
-            )
-            .field("shallow_node", &self.shallow_node)
             .finish()
     }
 }
 
 impl Node {
-    #[warn(clippy::too_many_arguments)]
     pub fn new(
         density: Float,
         velocity: Vec<Float>,
@@ -65,6 +61,7 @@ impl Node {
             coordinates,
             velocity_set_parameters,
             neighbor_nodes: RwLock::new(None),
+            scalar_nodes: RwLock::new(None),
             bounce_back_neighbor_nodes: RwLock::new(None),
             shallow_node: ShallowNode::new(density, velocity.clone()),
         }
@@ -685,6 +682,25 @@ impl Node {
             .expect("Neighbor node not found")
     }
 
+    pub fn get_scalar_nodes(&self) -> HashMap<String, Arc<passive_scalar::Node>> {
+        self.scalar_nodes.read().unwrap().as_ref().cloned().unwrap()
+    }
+
+    pub fn get_scalar_node(&self, scalar_name: String) -> Arc<passive_scalar::Node> {
+        self.get_scalar_nodes()
+            .get(&scalar_name)
+            .cloned()
+            .expect("Scalar node not found")
+    }
+
+    pub fn append_scalar_node(&self, scalar_name: String, node: Arc<passive_scalar::Node>) {
+        self.scalar_nodes
+            .write()
+            .unwrap()
+            .get_or_insert_with(HashMap::new)
+            .insert(scalar_name, node);
+    }
+
     /// # Examples
     /// ```
     /// # use std::sync::Arc;
@@ -895,7 +911,7 @@ impl Node {
     }
 
     fn get_force(&self) -> Option<Vec<Float>> {
-        self.force.as_ref().as_ref().map(|force_fn| force_fn(self))
+        self.force.as_ref().as_ref().map(|f| f(self))
     }
 }
 
@@ -1116,14 +1132,26 @@ impl Node {
     /// }
     /// ```
     pub fn compute_bgk_collision(&self, tau: Float) {
-        let f_star = kernel::bgk_collision(
-            &self.get_velocity(),
+        let mut f_star = kernel::bgk_collision(
             &self.get_f(),
             &self.get_f_eq(),
             tau,
-            self.get_force().as_ref().map(|v| v.as_slice()),
             self.get_velocity_set_parameters(),
         );
+        if let Some(force) = self.get_force().as_ref().map(|f_x| f_x.as_slice()) {
+            let source_term = kernel::momentum_source_term(
+                &self.get_velocity(),
+                force,
+                tau,
+                self.get_velocity_set_parameters(),
+            );
+            f_star
+                .iter_mut()
+                .zip(source_term.iter())
+                .for_each(|(f_star_i, source_term_i)| {
+                    *f_star_i += *source_term_i;
+                });
+        };
         self.set_f_star(f_star);
     }
 
