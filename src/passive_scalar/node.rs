@@ -1,13 +1,15 @@
 use super::ConversionFactor;
 use crate::prelude::*;
+use std::fmt::{self, Debug};
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct Node {
     momentum_node: Arc<momentum::Node>,
-    concentration: RwLock<Float>,
+    scalar_value: RwLock<Float>,
     g: RwLock<Vec<Float>>,
     g_eq: RwLock<Vec<Float>>,
     g_star: RwLock<Vec<Float>>,
+    source_value: Arc<Option<Box<dyn Fn(&Node) -> Float + Send + Sync>>>,
     velocity_set_parameters: Arc<VelocitySetParameters>,
     conversion_factor: Arc<ConversionFactor>,
     neighbor_nodes: RwLock<Option<HashMap<usize, Arc<Node>>>>,
@@ -15,9 +17,24 @@ pub struct Node {
     shallow_node: ShallowNode,
 }
 
+impl Debug for Node {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Node")
+            .field("momentum_node", &self.momentum_node)
+            .field("scalar_value", &self.get_scalar_value())
+            .field("g", &self.get_g())
+            .field("g_eq", &self.get_g_eq())
+            .field("g_star", &self.get_g_star())
+            .field("velocity_set_parameters", &self.velocity_set_parameters)
+            .field("conversion_factor", &self.conversion_factor)
+            .finish()
+    }
+}
+
 impl Node {
     pub fn new(
-        concentration: Float,
+        scalar_value: Float,
+        source_value: Arc<Option<Box<dyn Fn(&Node) -> Float + Send + Sync>>>,
         velocity_set_parameters: Arc<VelocitySetParameters>,
         conversion_factor: Arc<ConversionFactor>,
         momentum_node: Arc<momentum::Node>,
@@ -25,15 +42,16 @@ impl Node {
         let q = velocity_set_parameters.q;
         Node {
             momentum_node,
-            concentration: RwLock::new(concentration),
+            scalar_value: RwLock::new(scalar_value),
             g: RwLock::new(vec![0.0; q]),
             g_eq: RwLock::new(vec![0.0; q]),
             g_star: RwLock::new(vec![0.0; q]),
+            source_value,
             velocity_set_parameters,
             conversion_factor,
             neighbor_nodes: RwLock::new(None),
             bounce_back_neighbor_nodes: RwLock::new(None),
-            shallow_node: ShallowNode::new(concentration),
+            shallow_node: ShallowNode::new(scalar_value),
         }
     }
 }
@@ -43,13 +61,13 @@ impl Node {
         &self.momentum_node
     }
 
-    pub fn get_concentration(&self) -> Float {
-        *self.concentration.read().unwrap()
+    pub fn get_scalar_value(&self) -> Float {
+        *self.scalar_value.read().unwrap()
     }
 
-    pub(super) fn set_concentration(&self, concentration: Float) {
-        let mut concentration_lock = self.concentration.write().unwrap();
-        *concentration_lock = concentration;
+    pub(super) fn set_scalar_value(&self, scalar_value: Float) {
+        let mut scalar_value_guard = self.scalar_value.write().unwrap();
+        *scalar_value_guard = scalar_value;
     }
 
     pub fn get_g(&self) -> Vec<Float> {
@@ -57,8 +75,8 @@ impl Node {
     }
 
     pub(super) fn set_g(&self, g: Vec<Float>) {
-        let mut g_lock = self.g.write().unwrap();
-        *g_lock = g;
+        let mut g_guard = self.g.write().unwrap();
+        *g_guard = g;
     }
 
     pub fn get_g_eq(&self) -> Vec<Float> {
@@ -66,8 +84,8 @@ impl Node {
     }
 
     pub(super) fn set_g_eq(&self, g_eq: Vec<Float>) {
-        let mut g_eq_lock = self.g_eq.write().unwrap();
-        *g_eq_lock = g_eq;
+        let mut g_eq_guard = self.g_eq.write().unwrap();
+        *g_eq_guard = g_eq;
     }
 
     pub fn get_g_star(&self) -> Vec<Float> {
@@ -75,8 +93,8 @@ impl Node {
     }
 
     pub(super) fn set_g_star(&self, g_star: Vec<Float>) {
-        let mut g_star_lock = self.g_star.write().unwrap();
-        *g_star_lock = g_star;
+        let mut g_star_guard = self.g_star.write().unwrap();
+        *g_star_guard = g_star;
     }
 
     pub fn get_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
@@ -125,8 +143,16 @@ impl Node {
             .expect("Neighbor node not found")
     }
 
+    pub fn get_scalar_node(&self, scalar_name: String) -> Arc<passive_scalar::Node> {
+        self.get_momentum_node().get_scalar_node(scalar_name)
+    }
+
     pub fn get_shallow_node(&self) -> &ShallowNode {
         &self.shallow_node
+    }
+
+    pub fn get_source_value(&self) -> Option<Float> {
+        self.source_value.as_ref().as_ref().map(|f| f(self))
     }
 }
 
@@ -141,15 +167,15 @@ impl Node {
 }
 
 impl Node {
-    pub fn compute_concentration(&self) {
+    pub fn compute_scalar_value(&self) {
         let g = self.get_g();
-        let concentration = g.iter().sum::<Float>();
-        self.set_concentration(concentration);
+        let scalar_value = g.iter().sum::<Float>();
+        self.set_scalar_value(scalar_value);
     }
 
     pub fn compute_equilibrium(&self) {
         let g_eq = kernel::equilibrium(
-            self.get_concentration(),
+            self.get_scalar_value(),
             &self.get_momentum_node().get_velocity(),
             self.get_velocity_set_parameters(),
         );
@@ -158,13 +184,25 @@ impl Node {
 
     pub fn compute_bgk_collision(&self, tau_g: Float) {
         let g_star = kernel::bgk_collision(
-            &self.get_momentum_node().get_velocity(),
             &self.get_g(),
             &self.get_g_eq(),
             tau_g,
-            None,
             self.get_velocity_set_parameters(),
         );
+        // if let Some(force) = self.get_force().as_ref().map(|f_x| f_x.as_slice()) {
+        //     let source_term = kernel::momentum_source_term(
+        //         &self.get_velocity(),
+        //         force,
+        //         tau,
+        //         self.get_velocity_set_parameters(),
+        //     );
+        //     f_star
+        //         .iter_mut()
+        //         .zip(source_term.iter())
+        //         .for_each(|(f_star_i, source_term_i)| {
+        //             *f_star_i += *source_term_i;
+        //         });
+        // };
         self.set_g_star(g_star);
     }
 
@@ -181,7 +219,7 @@ impl Node {
 
     pub fn compute_mrt_collision(&self, relaxation_vector: &[Float]) {
         let g_star = kernel::mrt_collision(
-            self.get_concentration(),
+            self.get_scalar_value(),
             &self.get_momentum_node().get_velocity(),
             &self.get_g(),
             &self.get_g_eq(),
@@ -211,21 +249,21 @@ impl Node {
             .iter()
             .for_each(|(&i, node)| {
                 let i_bar = self.get_opposite_direction(i);
-                let wall_concentration = node.get_concentration();
-                g[i_bar] = -g_star[i] + 2.0 * w[i] * wall_concentration;
+                let wall_scalar_value = node.get_scalar_value();
+                g[i_bar] = -g_star[i] + 2.0 * w[i] * wall_scalar_value;
             });
         self.set_g(g);
     }
 
     pub fn compute_node_residuals(&self) -> Float {
-        let concentration = self.get_concentration();
-        let shallow_concentration = self.get_shallow_node().get_concentration();
-        concentration - shallow_concentration
+        let scalar_value = self.get_scalar_value();
+        let shallow_scalar_value = self.get_shallow_node().get_scalar_value();
+        scalar_value - shallow_scalar_value
     }
 
     pub fn update_shallow_node(&self) {
-        let concentration = self.get_concentration();
-        self.get_shallow_node().set_concentration(concentration);
+        let scalar_value = self.get_scalar_value();
+        self.get_shallow_node().set_scalar_value(scalar_value);
     }
 }
 
@@ -407,24 +445,24 @@ impl Node {
 
 #[derive(Debug)]
 pub struct ShallowNode {
-    pub concentration: RwLock<Float>,
+    pub scalar_value: RwLock<Float>,
 }
 
 impl ShallowNode {
-    pub fn new(density: Float) -> Self {
+    pub fn new(scalar_value: Float) -> Self {
         ShallowNode {
-            concentration: RwLock::new(density),
+            scalar_value: RwLock::new(scalar_value),
         }
     }
 }
 
 impl ShallowNode {
-    pub fn get_concentration(&self) -> Float {
-        *self.concentration.read().unwrap()
+    pub fn get_scalar_value(&self) -> Float {
+        *self.scalar_value.read().unwrap()
     }
 
-    pub fn set_concentration(&self, concentration: Float) {
-        let mut concentration_guard = self.concentration.write().unwrap();
-        *concentration_guard = concentration;
+    pub fn set_scalar_value(&self, scalar_value: Float) {
+        let mut scalar_guard = self.scalar_value.write().unwrap();
+        *scalar_guard = scalar_value;
     }
 }
