@@ -128,7 +128,7 @@ pub fn momentum_source_term(
     let q = vel_set_params.get_q();
     let c = vel_set_params.get_c();
     let w = vel_set_params.get_w();
-    let coeff = 1.0 - 0.5 * DELTA_T / tau;
+    let coeff_b = 1.0 - 0.5 * DELTA_T / tau;
     let mut source_term = Vec::with_capacity(q);
     (0..q).for_each(|i| {
         let u_dot_c = velocity
@@ -137,7 +137,7 @@ pub fn momentum_source_term(
             .map(|(u_x, c_x)| u_x * (*c_x as Float))
             .sum::<Float>();
         source_term.push(
-            coeff
+            coeff_b
                 * w[i]
                 * velocity
                     .iter()
@@ -154,16 +154,16 @@ pub fn momentum_source_term(
 }
 
 pub fn passive_scalar_source_term(
-    heat: Float,
+    source_value: Float,
     tau_g: Float,
     vel_set_params: &VelocitySetParameters,
 ) -> Vec<Float> {
     let q = vel_set_params.get_q();
     let w = vel_set_params.get_w();
-    let coeff = 1.0 - 0.5 / tau_g;
+    let coeff_b = 1.0 - 0.5 / tau_g;
     let mut source_term = Vec::with_capacity(q);
     (0..q).for_each(|i| {
-        source_term.push(coeff * w[i] * heat);
+        source_term.push(coeff_b * w[i] * source_value);
     });
     source_term
 }

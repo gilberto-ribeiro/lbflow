@@ -169,7 +169,10 @@ impl Node {
 impl Node {
     pub fn compute_scalar_value(&self) {
         let g = self.get_g();
-        let scalar_value = g.iter().sum::<Float>();
+        let mut scalar_value = g.iter().sum::<Float>();
+        if let Some(source_value) = self.get_source_value() {
+            scalar_value += 0.5 * DELTA_T * source_value;
+        };
         self.set_scalar_value(scalar_value);
     }
 
@@ -183,26 +186,25 @@ impl Node {
     }
 
     pub fn compute_bgk_collision(&self, tau_g: Float) {
-        let g_star = kernel::bgk_collision(
+        let mut g_star = kernel::bgk_collision(
             &self.get_g(),
             &self.get_g_eq(),
             tau_g,
             self.get_velocity_set_parameters(),
         );
-        // if let Some(force) = self.get_force().as_ref().map(|f_x| f_x.as_slice()) {
-        //     let source_term = kernel::momentum_source_term(
-        //         &self.get_velocity(),
-        //         force,
-        //         tau,
-        //         self.get_velocity_set_parameters(),
-        //     );
-        //     f_star
-        //         .iter_mut()
-        //         .zip(source_term.iter())
-        //         .for_each(|(f_star_i, source_term_i)| {
-        //             *f_star_i += *source_term_i;
-        //         });
-        // };
+        if let Some(source_value) = self.get_source_value() {
+            let source_term = kernel::passive_scalar_source_term(
+                source_value,
+                tau_g,
+                self.get_velocity_set_parameters(),
+            );
+            g_star
+                .iter_mut()
+                .zip(source_term.iter())
+                .for_each(|(g_star_i, source_term_i)| {
+                    *g_star_i += *source_term_i;
+                });
+        }
         self.set_g_star(g_star);
     }
 
