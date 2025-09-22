@@ -191,6 +191,14 @@ pub fn collect_parallel_files<P: AsRef<Path>>(dir: P, prefix: &str) -> LbResult<
     Ok(items.into_iter().map(|(_, p)| p).collect())
 }
 
+fn delete_parallel_files<P: AsRef<Path>>(dir: P, prefix: &str) -> LbResult<()> {
+    let paths = collect_parallel_files(dir, prefix)?;
+    for path in paths {
+        fs::remove_file(path)?;
+    }
+    Ok(())
+}
+
 pub fn read_parallel_csv_files<P: AsRef<Path>>(dir: P, prefix: &str) -> LbResult<Vec<String>> {
     Ok(collect_parallel_files(dir, prefix)?
         .into_iter()
@@ -202,6 +210,22 @@ pub fn read_parallel_csv_files<P: AsRef<Path>>(dir: P, prefix: &str) -> LbResult
             }
         })
         .collect())
+}
+
+pub fn unify_parallel_csv_files<P: AsRef<Path>>(
+    dir: P,
+    prefix: &str,
+    header: &str,
+) -> LbResult<()> {
+    let file_name = format!("{prefix}.csv");
+    let path = dir.as_ref().join(&file_name);
+    let data = read_parallel_csv_files(dir.as_ref(), prefix)?;
+    let mut file = File::create(&path)?;
+    writeln!(file, "{header}")?;
+    data.iter()
+        .for_each(|line| writeln!(file, "{line}").unwrap());
+    delete_parallel_files(dir.as_ref(), prefix)?;
+    Ok(())
 }
 
 pub fn print_residuals(info: &ResidualsInfo) {

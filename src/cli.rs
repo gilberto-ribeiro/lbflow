@@ -49,7 +49,8 @@ impl Config {
 #[derive(Debug)]
 pub enum Mode {
     Run,
-    Post,
+    PostVTK,
+    PostUnify,
 }
 
 pub fn get_args() -> LbResult<clap::ArgMatches> {
@@ -69,7 +70,6 @@ pub fn get_args() -> LbResult<clap::ArgMatches> {
         )
         .arg(
             Arg::new("core_affinity")
-                .short('a')
                 .long("affinity")
                 .help("Set the core affinity")
                 .action(clap::ArgAction::SetTrue)
@@ -89,7 +89,6 @@ pub fn get_args() -> LbResult<clap::ArgMatches> {
                 )
                 .arg(
                     Arg::new("max_iterations")
-                        .short('m')
                         .long("max-iterations")
                         .value_name("ITER")
                         .help("The maximum number of iterations")
@@ -98,7 +97,6 @@ pub fn get_args() -> LbResult<clap::ArgMatches> {
                 )
                 .arg(
                     Arg::new("freeze_momentum")
-                        .short('f')
                         .long("freeze")
                         .help("Freeze the momentum field calculation")
                         .action(clap::ArgAction::SetTrue),
@@ -107,20 +105,25 @@ pub fn get_args() -> LbResult<clap::ArgMatches> {
         .subcommand(
             Command::new("post")
                 .about("Post-process the simulation data")
-                .arg(
-                    Arg::new("physical_data")
-                        .short('p')
-                        .long("physical")
-                        .help("If the data is written in physical units")
-                        .action(clap::ArgAction::SetTrue),
+                .subcommand(
+                    Command::new("vtk")
+                        .about("Write VTK files for visualization in Paraview")
+                        .arg(
+                            Arg::new("physical_data")
+                                .long("physical")
+                                .help("If the data is written in physical units")
+                                .action(clap::ArgAction::SetTrue),
+                        )
+                        .arg(
+                            Arg::new("node_type")
+                                .long("node-type")
+                                .help("Write node_type.vtk file")
+                                .action(clap::ArgAction::SetTrue),
+                        ),
                 )
-                .arg(
-                    Arg::new("node_type")
-                        .short('t')
-                        .long("type")
-                        .help("Write node_type.vtk file")
-                        .action(clap::ArgAction::SetTrue),
-                ),
+                .subcommand(Command::new("unify").about(
+                    "Unify the parallel output files into a single file for each time step",
+                )),
         )
         .get_matches();
     Ok(matches)
@@ -145,17 +148,29 @@ pub fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
             };
             Ok(cfg)
         }
-        Some(("post", sub_m)) => {
-            let cfg = Config {
-                mode: Mode::Post,
-                number_of_threads,
-                core_affinity,
-                node_type: sub_m.get_flag("node_type"),
-                physical_data: sub_m.get_flag("physical_data"),
-                ..Default::default()
-            };
-            Ok(cfg)
-        }
+        Some(("post", sub_m)) => match sub_m.subcommand() {
+            Some(("vtk", sub_m)) => {
+                let cfg = Config {
+                    mode: Mode::PostVTK,
+                    number_of_threads,
+                    core_affinity,
+                    node_type: sub_m.get_flag("node_type"),
+                    physical_data: sub_m.get_flag("physical_data"),
+                    ..Default::default()
+                };
+                Ok(cfg)
+            }
+            Some(("unify", _)) => {
+                let cfg = Config {
+                    mode: Mode::PostUnify,
+                    number_of_threads,
+                    core_affinity,
+                    ..Default::default()
+                };
+                Ok(cfg)
+            }
+            _ => unreachable!("At least one subcommand is required: .subcommand_required(true)"),
+        },
         _ => unreachable!("At least one subcommand is required: .subcommand_required(true)"),
     }
 }

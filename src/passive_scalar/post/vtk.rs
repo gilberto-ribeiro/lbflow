@@ -6,13 +6,22 @@ use std::io::Write;
 use std::path::Path;
 
 fn read_scalar_values(time_step: usize, prefix: &str) -> Vec<Float> {
-    let dir = Path::new(crate::io::DATA_PATH).join(time_step.to_string());
-    crate::io::read_parallel_csv_files(dir, prefix)
+    let file_name = format!("{prefix}.csv");
+    let path = Path::new(crate::io::DATA_PATH)
+        .join(time_step.to_string())
+        .join(file_name);
+    crate::io::read_csv_file(path)
         .and_then(crate::io::parse_scalar_from_string)
         .unwrap_or_else(|e| {
             eprintln!("Error: {e}");
             std::process::exit(1);
         })
+}
+
+fn unify_scalar_values(time_step: usize, prefix: &str) -> LbResult<()> {
+    let dir = Path::new(crate::io::DATA_PATH).join(time_step.to_string());
+    let header = prefix;
+    crate::io::unify_parallel_csv_files(dir, prefix, header)
 }
 
 fn append_passive_scalar_vtk<P: AsRef<Path>>(
@@ -55,9 +64,35 @@ fn passive_scalar_vtk(config: &Config, prefix: &str) {
         });
 }
 
+fn passive_scalar_unify(prefix: &str) {
+    crate::io::collect_time_steps()
+        .unwrap_or_else(|e| {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        })
+        .into_par_iter()
+        .for_each(|time_step| {
+            println!(
+                "Unifying {} files for time step {}.",
+                prefix.bold().yellow(),
+                time_step.to_string().bold().yellow()
+            );
+            if let Err(e) = unify_scalar_values(time_step, prefix) {
+                eprintln!("Error unifying {prefix} values for time step {time_step}: {e}");
+                std::process::exit(1);
+            };
+        });
+}
+
 fn passive_scalar_vtk_vec(config: &Config, prefixes: &[String]) {
     prefixes.iter().for_each(|prefix| {
         passive_scalar_vtk(config, prefix);
+    });
+}
+
+fn passive_scalar_unify_vec(prefixes: &[String]) {
+    prefixes.iter().for_each(|prefix| {
+        passive_scalar_unify(prefix);
     });
 }
 
@@ -75,6 +110,16 @@ pub fn post_vtk(
     passive_scalar_vtk(&config, &passive_scalar_params.scalar_name);
 }
 
+pub fn post_unify(
+    _config: Config,
+    momentum_params: momentum::Parameters,
+    passive_scalar_params: passive_scalar::Parameters,
+) {
+    let dim = momentum_params.n.len();
+    momentum::post::vtk::momentum_unify(dim);
+    passive_scalar_unify(&passive_scalar_params.scalar_name);
+}
+
 pub fn post_vtk_vec(
     config: Config,
     momentum_params: momentum::Parameters,
@@ -88,6 +133,21 @@ pub fn post_vtk_vec(
     momentum::post::vtk::momentum_vtk(&config, &conversion_factor, &n, &coordinates);
     passive_scalar_vtk_vec(
         &config,
+        &passive_scalar_params_vec
+            .iter()
+            .map(|passive_scalar_params| passive_scalar_params.scalar_name.clone())
+            .collect::<Vec<String>>(),
+    );
+}
+
+pub fn post_unify_vec(
+    _config: Config,
+    momentum_params: momentum::Parameters,
+    passive_scalar_params_vec: Vec<passive_scalar::Parameters>,
+) {
+    let dim = momentum_params.n.len();
+    momentum::post::vtk::momentum_unify(dim);
+    passive_scalar_unify_vec(
         &passive_scalar_params_vec
             .iter()
             .map(|passive_scalar_params| passive_scalar_params.scalar_name.clone())

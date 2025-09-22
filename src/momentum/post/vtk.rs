@@ -43,9 +43,10 @@ pub fn read_coordinates_file(dim: usize) -> (Vec<Vec<usize>>, Vec<Vec<Float>>, V
 }
 
 fn read_densities(time_step: usize) -> Vec<Float> {
-    let dir = Path::new(crate::io::DATA_PATH).join(time_step.to_string());
-    let prefix = "density";
-    crate::io::read_parallel_csv_files(dir, prefix)
+    let path = Path::new(crate::io::DATA_PATH)
+        .join(time_step.to_string())
+        .join(crate::io::DENSITY_FILE);
+    crate::io::read_csv_file(path)
         .and_then(crate::io::parse_scalar_from_string)
         .unwrap_or_else(|e| {
             eprintln!("Error: {e}");
@@ -54,14 +55,33 @@ fn read_densities(time_step: usize) -> Vec<Float> {
 }
 
 fn read_velocities(time_step: usize) -> Vec<Vec<Float>> {
-    let dir = Path::new(crate::io::DATA_PATH).join(time_step.to_string());
-    let prefix = "velocity";
-    crate::io::read_parallel_csv_files(dir, prefix)
+    let path = Path::new(crate::io::DATA_PATH)
+        .join(time_step.to_string())
+        .join(crate::io::VELOCITY_FILE);
+    crate::io::read_csv_file(path)
         .and_then(crate::io::parse_vector_from_string)
         .unwrap_or_else(|e| {
             eprintln!("Error: {e}");
             std::process::exit(1);
         })
+}
+
+fn unify_densities(time_step: usize) -> LbResult<()> {
+    let dir = Path::new(crate::io::DATA_PATH).join(time_step.to_string());
+    let prefix = "density";
+    let header = "density";
+    crate::io::unify_parallel_csv_files(dir, prefix, header)
+}
+
+fn unify_velocities(time_step: usize, dim: usize) -> LbResult<()> {
+    let dir = Path::new(crate::io::DATA_PATH).join(time_step.to_string());
+    let prefix = "velocity";
+    let directions = ["x", "y", "z"];
+    let header = (0..dim)
+        .map(|x| format!("velocity_{}", directions[x]))
+        .collect::<Vec<String>>()
+        .join(",");
+    crate::io::unify_parallel_csv_files(dir, prefix, &header)
 }
 
 fn write_node_type_vtk<P: AsRef<Path>>(
@@ -191,6 +211,11 @@ pub fn post_vtk(config: Config, momentum_params: momentum::Parameters) {
     momentum_vtk(&config, &conversion_factor, &n, &coordinates);
 }
 
+pub fn post_unify(_config: Config, momentum_params: momentum::Parameters) {
+    let dim = momentum_params.n.len();
+    momentum_unify(dim);
+}
+
 fn compute_physical_pressure(
     density: Float,
     conversion_factor: &momentum::ConversionFactor,
@@ -244,6 +269,31 @@ pub fn momentum_vtk(
                 &velocities,
             ) {
                 eprintln!("Error writing VTK {path:?}: {e}");
+                std::process::exit(1);
+            };
+        });
+}
+
+pub fn momentum_unify(dim: usize) {
+    crate::io::collect_time_steps()
+        .unwrap_or_else(|e| {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        })
+        .into_par_iter()
+        .for_each(|time_step| {
+            println!(
+                "Unifying {} and {} files for time step {}.",
+                "density".bold().yellow(),
+                "velocity".bold().yellow(),
+                time_step.to_string().bold().yellow()
+            );
+            if let Err(e) = unify_densities(time_step) {
+                eprintln!("Error unifying densities for time step {time_step}: {e}");
+                std::process::exit(1);
+            };
+            if let Err(e) = unify_velocities(time_step, dim) {
+                eprintln!("Error unifying velocities for time step {time_step}: {e}");
                 std::process::exit(1);
             };
         });
