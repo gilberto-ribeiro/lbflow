@@ -3,7 +3,7 @@ use crate::prelude::*;
 pub fn equilibrium(
     value: Float,
     velocity: &[Float],
-    vel_set_params: &VelocitySetParameters,
+    vel_set_params: &velocity_set::Parameters,
 ) -> Vec<Float> {
     let q = vel_set_params.get_q();
     let c = vel_set_params.get_c();
@@ -29,7 +29,7 @@ pub fn bgk_collision(
     f: &[Float],
     f_eq: &[Float],
     tau: Float,
-    vel_set_params: &VelocitySetParameters,
+    vel_set_params: &velocity_set::Parameters,
 ) -> Vec<Float> {
     let q = vel_set_params.get_q();
     let omega = DELTA_T / tau;
@@ -46,7 +46,7 @@ pub fn trt_collision(
     f_eq: &[Float],
     omega_plus: Float,
     omega_minus: Float,
-    vel_set_params: &VelocitySetParameters,
+    vel_set_params: &velocity_set::Parameters,
 ) -> Vec<Float> {
     let q = vel_set_params.get_q();
     let mut f_star = Vec::with_capacity(q);
@@ -70,7 +70,7 @@ pub fn mrt_collision(
     f: &[Float],
     f_eq: &[Float],
     relaxation_vector: &[Float],
-    vel_set_params: &VelocitySetParameters,
+    vel_set_params: &velocity_set::Parameters,
 ) -> Vec<Float> {
     let q = vel_set_params.get_q();
     let mrt_matrix = vel_set_params.get_mrt_matrix();
@@ -123,7 +123,7 @@ pub fn momentum_source_term(
     velocity: &[Float],
     force: &[Float],
     tau: Float,
-    vel_set_params: &VelocitySetParameters,
+    vel_set_params: &velocity_set::Parameters,
 ) -> Vec<Float> {
     let q = vel_set_params.get_q();
     let c = vel_set_params.get_c();
@@ -156,7 +156,7 @@ pub fn momentum_source_term(
 pub fn passive_scalar_source_term(
     source_value: Float,
     tau_g: Float,
-    vel_set_params: &VelocitySetParameters,
+    vel_set_params: &velocity_set::Parameters,
 ) -> Vec<Float> {
     let q = vel_set_params.get_q();
     let w = vel_set_params.get_w();
@@ -166,4 +166,9 @@ pub fn passive_scalar_source_term(
         source_term.push(coeff_b * w[i] * source_value);
     });
     source_term
+}
+
+pub fn pseudo_potential(density: Float) -> Float {
+    let referencial_density = LATTICE_DENSITY;
+    referencial_density * (1.0 - (-density / referencial_density).exp())
 }

@@ -4,6 +4,39 @@ use std::fmt::{self, Debug};
 
 // -------------------------------------------------------------------------- STRUCT: Node
 
+pub struct Parameters {
+    velocity_set_params: Arc<velocity_set::Parameters>,
+    multiphase_params: Arc<Option<multiphase::Parameters>>,
+}
+
+impl Default for Parameters {
+    fn default() -> Self {
+        Parameters {
+            velocity_set_params: Arc::new(velocity_set::Parameters::default()),
+            multiphase_params: Arc::new(None),
+        }
+    }
+}
+
+impl Parameters {
+    pub fn new(
+        velocity_set_params: Arc<velocity_set::Parameters>,
+        multiphase_params: Arc<Option<multiphase::Parameters>>,
+    ) -> Self {
+        Parameters {
+            velocity_set_params,
+            multiphase_params,
+        }
+    }
+
+    fn test_default(dim: usize) -> Self {
+        Parameters {
+            velocity_set_params: Arc::new(velocity_set::Parameters::test_default(dim)),
+            multiphase_params: Arc::new(None),
+        }
+    }
+}
+
 // #[derive(Debug)]
 pub struct Node {
     density: RwLock<Float>,
@@ -11,14 +44,17 @@ pub struct Node {
     f: RwLock<Vec<Float>>,
     f_eq: RwLock<Vec<Float>>,
     f_star: RwLock<Vec<Float>>,
+    phi: RwLock<Option<Float>>,
     force: Arc<Option<Box<dyn Fn(&Node) -> Vec<Float> + Send + Sync>>>,
+    multiphase_parameters: Arc<Option<multiphase::Parameters>>,
     node_type: NodeType,
     index: Vec<usize>,
     coordinates: Vec<Float>,
-    velocity_set_parameters: Arc<VelocitySetParameters>,
+    velocity_set_parameters: Arc<velocity_set::Parameters>,
     neighbor_nodes: RwLock<Option<HashMap<usize, Arc<Node>>>>,
     scalar_nodes: RwLock<Option<HashMap<String, Arc<passive_scalar::Node>>>>,
     bounce_back_neighbor_nodes: RwLock<Option<HashMap<usize, Arc<Node>>>>,
+    bounce_back_node_status: RwLock<bool>,
     shallow_node: ShallowNode,
 }
 
@@ -46,23 +82,26 @@ impl Node {
         node_type: NodeType,
         index: Vec<usize>,
         coordinates: Vec<Float>,
-        velocity_set_parameters: Arc<VelocitySetParameters>,
+        parameters: Arc<Parameters>,
     ) -> Self {
-        let q = velocity_set_parameters.q;
+        let q = parameters.velocity_set_params.q;
         Node {
             density: RwLock::new(density),
             velocity: RwLock::new(velocity.clone()),
             f: RwLock::new(vec![0.0; q]),
             f_eq: RwLock::new(vec![0.0; q]),
             f_star: RwLock::new(vec![0.0; q]),
+            phi: RwLock::new(None),
             force,
+            multiphase_parameters: Arc::clone(&parameters.multiphase_params),
             node_type,
             index,
             coordinates,
-            velocity_set_parameters,
+            velocity_set_parameters: Arc::clone(&parameters.velocity_set_params),
             neighbor_nodes: RwLock::new(None),
             scalar_nodes: RwLock::new(None),
             bounce_back_neighbor_nodes: RwLock::new(None),
+            bounce_back_node_status: RwLock::new(false),
             shallow_node: ShallowNode::new(density, velocity.clone()),
         }
     }
@@ -76,7 +115,7 @@ impl Node {
                 Fluid,
                 vec![3, 7],
                 vec![0.035, 0.075],
-                Arc::new(VelocitySetParameters::test_default(2)),
+                Arc::new(Parameters::test_default(2)),
             ),
             3 => Node::new(
                 1.0,
@@ -85,7 +124,7 @@ impl Node {
                 Fluid,
                 vec![3, 5, 7],
                 vec![0.035, 0.055, 0.075],
-                Arc::new(VelocitySetParameters::test_default(3)),
+                Arc::new(Parameters::test_default(3)),
             ),
             _ => panic!("Unsupported dimension: {dim}"),
         }
@@ -101,7 +140,7 @@ impl Default for Node {
             Fluid,
             vec![0, 0],
             vec![0.0, 0.0],
-            Arc::new(VelocitySetParameters::default()),
+            Arc::new(Parameters::default()),
         )
     }
 }
@@ -112,7 +151,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_density(), 1.0);
@@ -128,7 +167,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_density(), 1.0);
@@ -151,7 +190,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_velocity(), vec![0.0, 0.0]);
@@ -164,7 +203,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(3);
     ///
     /// assert_eq!(node.get_velocity(), vec![0.0, 0.0, 0.0]);
@@ -183,7 +222,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_velocity(), vec![0.0, 0.0]);
@@ -225,7 +264,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(3);
     ///
     /// assert_eq!(node.get_velocity(), vec![0.0, 0.0, 0.0]);
@@ -247,7 +286,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_f(), vec![0.0; 9]);
@@ -266,7 +305,7 @@ impl Node {
     /// # use lbflow::constants::Float;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_f(), vec![0.0; 9]);
@@ -331,7 +370,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_f_eq(), vec![0.0; 9]);
@@ -350,7 +389,7 @@ impl Node {
     /// # use lbflow::constants::Float;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_f_eq(), vec![0.0; 9]);
@@ -415,7 +454,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_f_star(), vec![0.0; 9]);
@@ -434,7 +473,7 @@ impl Node {
     /// # use lbflow::constants::Float;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_f_star(), vec![0.0; 9]);
@@ -494,12 +533,32 @@ impl Node {
         *f_star_guard = f_star;
     }
 
+    pub fn get_phi(&self) -> Option<Float> {
+        // *self.phi.borrow()
+        *self.phi.read().unwrap()
+    }
+
+    fn set_phi(&self, phi: Float) {
+        // self.phi.replace(Some(phi));
+        let mut phi_guard = self.phi.write().unwrap();
+        *phi_guard = Some(phi);
+    }
+
+    pub fn is_bounce_back_node(&self) -> bool {
+        *self.bounce_back_node_status.read().unwrap()
+    }
+
+    pub(super) fn change_bounce_back_node_status(&self) {
+        let mut status_guard = self.bounce_back_node_status.write().unwrap();
+        *status_guard = !*status_guard;
+    }
+
     /// # Examples
     /// ```
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_node_type(), &NodeType::Fluid);
@@ -514,7 +573,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_index(), &vec![3, 7]);
@@ -706,7 +765,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// let shallow_node = node.get_shallow_node();
@@ -719,7 +778,11 @@ impl Node {
 }
 
 impl Node {
-    pub fn get_velocity_set_parameters(&self) -> &Arc<VelocitySetParameters> {
+    pub fn get_multiphase_parameters(&self) -> &Option<multiphase::Parameters> {
+        &self.multiphase_parameters
+    }
+
+    pub fn get_velocity_set_parameters(&self) -> &Arc<velocity_set::Parameters> {
         &self.velocity_set_parameters
     }
 
@@ -729,7 +792,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_d(), &2);
@@ -739,7 +802,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(3);
     ///
     /// assert_eq!(node.get_d(), &3);
@@ -754,7 +817,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_q(), &9);
@@ -764,7 +827,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(3);
     ///
     /// assert_eq!(node.get_q(), &27);
@@ -779,7 +842,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// let c = node.get_c();
@@ -793,7 +856,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(3);
     ///
     /// let c = node.get_c();
@@ -813,7 +876,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// let w = node.get_w();
@@ -827,7 +890,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(3);
     ///
     /// let w = node.get_w();
@@ -847,7 +910,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// let q_bar = node.get_q_bar();
@@ -861,7 +924,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(3);
     ///
     /// let q_bar = node.get_q_bar();
@@ -911,7 +974,21 @@ impl Node {
     }
 
     fn get_force(&self) -> Option<Vec<Float>> {
-        self.force.as_ref().as_ref().map(|f| f(self))
+        let body_force = self.force.as_ref().as_ref().map(|f| f(self));
+        let shan_chen_force = self.compute_shan_chen_force();
+        match (body_force, shan_chen_force) {
+            (Some(bf), Some(scf)) => {
+                let combined_force: Vec<Float> = bf
+                    .iter()
+                    .zip(scf.iter())
+                    .map(|(bf_x, scf_x)| bf_x + scf_x)
+                    .collect();
+                Some(combined_force)
+            }
+            (Some(bf), None) => Some(bf),
+            (None, Some(scf)) => Some(scf),
+            (None, None) => None,
+        }
     }
 }
 
@@ -922,7 +999,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_density(), 1.0);
@@ -946,7 +1023,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(3);
     ///
     /// assert_eq!(node.get_density(), 1.0);
@@ -964,6 +1041,7 @@ impl Node {
         let f = self.get_f();
         let density = f.iter().sum::<Float>();
         self.set_density(density);
+        self.compute_phi();
     }
 
     /// # Examples
@@ -972,7 +1050,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_velocity(), vec![0.0; 2]);
@@ -1010,7 +1088,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(3);
     ///
     /// assert_eq!(node.get_velocity(), vec![0.0; 3]);
@@ -1090,7 +1168,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// node.set_f(vec![0.1; 9]);
@@ -1118,7 +1196,7 @@ impl Node {
     /// use lbflow::constants::DELTA_T;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// node.set_f(vec![0.1; 9]);
@@ -1254,7 +1332,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// node.set_density(0.95);
@@ -1286,7 +1364,7 @@ impl Node {
     /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::VelocitySetParameters;
+    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// let shallow_node = node.get_shallow_node();
@@ -1307,6 +1385,53 @@ impl Node {
         let velocity = self.get_velocity();
         self.get_shallow_node().set_density(density);
         self.get_shallow_node().set_velocity(velocity);
+    }
+
+    pub fn compute_phi(&self) {
+        if self.get_multiphase_parameters().is_some() {
+            let density = self.get_density();
+            let phi = kernel::pseudo_potential(density);
+            self.set_phi(phi);
+        }
+    }
+
+    fn compute_shan_chen_force(&self) -> Option<Vec<Float>> {
+        if let Some(mp_params) = self.get_multiphase_parameters() {
+            let g_function = mp_params.get_g_function();
+            let wall_phi = mp_params.get_wall_phi();
+            let node_phi = self.get_phi().unwrap();
+            let vs_params = self.get_velocity_set_parameters();
+            let c = vs_params.get_c();
+            let w = vs_params.get_w();
+            let d = vs_params.get_d();
+            let q = vs_params.get_q();
+            let mut neighbor_nodes_phi = vec![0.0; q];
+            self.get_neighbor_nodes()
+                .iter()
+                .for_each(|(&i, neighbor_node)| {
+                    neighbor_nodes_phi[i] = match neighbor_node.get_node_type() {
+                        Fluid => neighbor_node.get_phi().unwrap(),
+                        Solid => wall_phi,
+                    };
+                });
+            let force = (0..d)
+                .map(|x| {
+                    -g_function
+                        * node_phi
+                        * (0..q)
+                            .map(|i| {
+                                let w_i = w[i];
+                                let phi_i = neighbor_nodes_phi[i];
+                                let c_ix = c[i][x] as Float;
+                                w_i * c_ix * phi_i
+                            })
+                            .sum::<Float>()
+                })
+                .collect::<Vec<Float>>();
+            Some(force)
+        } else {
+            None
+        }
     }
 }
 

@@ -3,6 +3,7 @@
 pub mod bc;
 pub mod io;
 pub mod lattice;
+pub mod multiphase;
 mod node;
 pub mod post;
 
@@ -21,6 +22,7 @@ pub struct Parameters {
     pub n: Vec<usize>,
     pub collision_operator: CollisionOperator,
     pub force: Option<Box<dyn Fn(&Node) -> Vec<Float> + Send + Sync>>,
+    pub multiphase_parameters: Option<multiphase::Parameters>,
     pub tau: Float,
     pub delta_x: Float,
     pub delta_t: Float,
@@ -40,6 +42,7 @@ impl Default for Parameters {
             n: vec![10, 10],
             collision_operator: BGK(0.5),
             force: None,
+            multiphase_parameters: None,
             tau: 0.5,
             delta_x: 0.01,
             delta_t: 0.01,
@@ -307,6 +310,7 @@ pub fn solve(momentum_params: momentum::Parameters) {
 
     match config.mode {
         cli::Mode::Run => run(config, momentum_params),
-        cli::Mode::Post => post::vtk::post_vtk(config, momentum_params),
+        cli::Mode::PostVTK => post::vtk::post_vtk(config, momentum_params),
+        cli::Mode::PostUnify => post::vtk::post_unify(config, momentum_params),
     }
 }

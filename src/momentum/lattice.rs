@@ -16,7 +16,7 @@ pub struct Lattice {
     nodes: Vec<Arc<Node>>,
     n: Vec<usize>,
     collision_operator: Arc<CollisionOperator>,
-    velocity_set_parameters: Arc<VelocitySetParameters>,
+    velocity_set_parameters: Arc<velocity_set::Parameters>,
     conversion_factor: Arc<ConversionFactor>,
     fluid_nodes: Vec<Arc<Node>>,
     boundary_nodes: HashMap<BoundaryFace, Vec<Arc<Node>>>,
@@ -38,10 +38,15 @@ impl Lattice {
         let velocity_set = params.velocity_set;
         println!("Selecting collision operator for the lattice: {collision_operator:?}\n");
         println!("Selecting velocity set for the lattice: {velocity_set:?}\n");
-        let velocity_set_parameters = Arc::new(velocity_set.get_velocity_set_parameters());
+        let velocity_set_params = Arc::new(velocity_set.get_velocity_set_parameters());
+        let multiphase_params = Arc::new(params.multiphase_parameters);
+        let node_parameters = Arc::new(super::node::Parameters::new(
+            Arc::clone(&velocity_set_params),
+            multiphase_params,
+        ));
 
-        let d = &velocity_set_parameters.d;
-        let c = &(velocity_set_parameters.c);
+        let d = &velocity_set_params.d;
+        let c = &(velocity_set_params.c);
         let n = &params.n;
         let node_types = &params.node_types;
         let physical_delta_x = params.delta_x;
@@ -106,7 +111,7 @@ impl Lattice {
                     node_type,
                     index,
                     coordinates,
-                    Arc::clone(&velocity_set_parameters),
+                    Arc::clone(&node_parameters),
                 ))
             })
             .collect::<Vec<Arc<Node>>>();
@@ -199,6 +204,7 @@ impl Lattice {
             if !bounce_back_neighbor_nodes.is_empty() {
                 node.set_bounce_back_neighbor_nodes(bounce_back_neighbor_nodes);
                 bounce_back_nodes.push(Arc::clone(node));
+                node.change_bounce_back_node_status();
             }
         });
 
@@ -206,7 +212,7 @@ impl Lattice {
             nodes,
             n: n.to_vec(),
             collision_operator: Arc::clone(&collision_operator),
-            velocity_set_parameters: Arc::clone(&velocity_set_parameters),
+            velocity_set_parameters: Arc::clone(&velocity_set_params),
             conversion_factor,
             fluid_nodes,
             boundary_nodes,
@@ -435,6 +441,7 @@ impl Lattice {
 impl Lattice {
     pub fn initialize_nodes(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
+            node.compute_phi();
             node.compute_equilibrium();
             node.set_f(node.get_f_eq());
         });
