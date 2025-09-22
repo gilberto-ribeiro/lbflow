@@ -22,9 +22,9 @@ pub enum VelocitySet {
 }
 
 impl VelocitySet {
-    pub fn get_velocity_set_parameters(&self) -> VelocitySetParameters {
+    pub fn get_velocity_set_parameters(&self) -> Parameters {
         match self {
-            D2Q9 => VelocitySetParameters {
+            D2Q9 => Parameters {
                 velocity_set: D2Q9,
                 d: d2q9::D,
                 q: d2q9::Q,
@@ -52,7 +52,7 @@ impl VelocitySet {
                     d2q9::mrt_equilibrium_moments_computation,
                 ),
             },
-            D3Q15 => VelocitySetParameters {
+            D3Q15 => Parameters {
                 velocity_set: D3Q15,
                 d: d3q15::D,
                 q: d3q15::Q,
@@ -82,7 +82,7 @@ impl VelocitySet {
                     d3q15::mrt_equilibrium_moments_computation,
                 ),
             },
-            D3Q19 => VelocitySetParameters {
+            D3Q19 => Parameters {
                 velocity_set: D3Q19,
                 d: d3q19::D,
                 q: d3q19::Q,
@@ -112,7 +112,7 @@ impl VelocitySet {
                     d3q19::mrt_equilibrium_moments_computation,
                 ),
             },
-            D3Q27 => VelocitySetParameters {
+            D3Q27 => Parameters {
                 velocity_set: D3Q27,
                 d: d3q27::D,
                 q: d3q27::Q,
@@ -144,7 +144,7 @@ impl VelocitySet {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct VelocitySetParameters {
+pub struct Parameters {
     pub velocity_set: VelocitySet,
     pub d: usize,
     pub q: usize,
@@ -159,7 +159,7 @@ pub struct VelocitySetParameters {
     pub mrt_equilibrium_moments_computation: Option<VectorComputation>,
 }
 
-impl Default for VelocitySetParameters {
+impl Default for Parameters {
     fn default() -> Self {
         D2Q9.get_velocity_set_parameters()
     }
@@ -169,8 +169,8 @@ impl Default for VelocitySetParameters {
 /// ## 2D:
 /// ```
 /// # use lbflow::velocity_set::VelocitySet;
-/// # use lbflow::velocity_set::VelocitySetParameters;
-/// let velocity_set_parameters = VelocitySetParameters::test_default(2);
+/// # use lbflow::velocity_set::Parameters;
+/// let velocity_set_parameters = Parameters::test_default(2);
 /// assert_eq!(velocity_set_parameters.d, 2);
 /// assert_eq!(velocity_set_parameters.q, 9);
 /// assert_eq!(velocity_set_parameters.c.len(), 9);
@@ -179,14 +179,14 @@ impl Default for VelocitySetParameters {
 /// ## 3D:
 /// ```
 /// # use lbflow::velocity_set::VelocitySet;
-/// # use lbflow::velocity_set::VelocitySetParameters;
-/// let velocity_set_parameters = VelocitySetParameters::test_default(3);
+/// # use lbflow::velocity_set::Parameters;
+/// let velocity_set_parameters = Parameters::test_default(3);
 /// assert_eq!(velocity_set_parameters.d, 3);
 /// assert_eq!(velocity_set_parameters.q, 27);
 /// assert_eq!(velocity_set_parameters.c.len(), 27);
 /// assert_eq!(velocity_set_parameters.w.len(), 27);
 /// ```
-impl VelocitySetParameters {
+impl Parameters {
     pub fn test_default(dim: usize) -> Self {
         match dim {
             2 => Default::default(),
@@ -196,7 +196,7 @@ impl VelocitySetParameters {
     }
 }
 
-impl VelocitySetParameters {
+impl Parameters {
     pub fn get_d(&self) -> usize {
         self.d
     }

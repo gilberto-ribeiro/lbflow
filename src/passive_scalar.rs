@@ -136,8 +136,11 @@ pub fn solve(momentum_parameters: momentum::Parameters, passive_scalar_parameter
 
     match config.mode {
         cli::Mode::Run => run(config, momentum_parameters, passive_scalar_parameters),
-        cli::Mode::Post => {
+        cli::Mode::PostVTK => {
             post::vtk::post_vtk(config, momentum_parameters, passive_scalar_parameters)
+        }
+        cli::Mode::PostUnify => {
+            post::vtk::post_unify(config, momentum_parameters, passive_scalar_parameters)
         }
     }
 }
@@ -205,8 +208,11 @@ pub fn solve_vec(
 
     match config.mode {
         cli::Mode::Run => run_vec(config, momentum_parameters, passive_scalar_parameters_vec),
-        cli::Mode::Post => {
+        cli::Mode::PostVTK => {
             post::vtk::post_vtk_vec(config, momentum_parameters, passive_scalar_parameters_vec)
+        }
+        cli::Mode::PostUnify => {
+            post::vtk::post_unify_vec(config, momentum_parameters, passive_scalar_parameters_vec)
         }
     }
 }

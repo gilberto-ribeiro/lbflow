@@ -15,7 +15,7 @@ pub struct Lattice {
     momentum_lattice: Arc<momentum::Lattice>,
     nodes: Vec<Arc<Node>>,
     collision_operator: Arc<CollisionOperator>,
-    velocity_set_parameters: Arc<VelocitySetParameters>,
+    velocity_set_parameters: Arc<velocity_set::Parameters>,
     _conversion_factor: Arc<ConversionFactor>,
     fluid_nodes: Vec<Arc<Node>>,
     boundary_nodes: HashMap<BoundaryFace, Vec<Arc<Node>>>,
