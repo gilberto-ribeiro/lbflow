@@ -15,6 +15,7 @@ pub struct Config {
     pub freeze_momentum: bool,
     pub node_type: bool,
     pub physical_data: bool,
+    pub keep: bool,
 }
 
 impl Default for Config {
@@ -28,6 +29,7 @@ impl Default for Config {
             freeze_momentum: false,
             node_type: false,
             physical_data: false,
+            keep: false,
         }
     }
 }
@@ -123,7 +125,15 @@ pub fn get_args() -> LbResult<clap::ArgMatches> {
                 )
                 .subcommand(Command::new("unify").about(
                     "Unify the parallel output files into a single file for each time step",
-                )),
+                )
+                .arg(
+                    Arg::new("keep")
+                        .short('k')
+                        .long("keep")
+                        .help("Keep the intermediate files after unification")
+                        .action(clap::ArgAction::SetTrue)
+                )
+            ),
         )
         .get_matches();
     Ok(matches)
@@ -165,6 +175,7 @@ pub fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
                     mode: Mode::PostUnify,
                     number_of_threads,
                     core_affinity,
+                    keep: sub_m.get_flag("keep"),
                     ..Default::default()
                 };
                 Ok(cfg)

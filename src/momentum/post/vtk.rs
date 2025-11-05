@@ -66,14 +66,14 @@ fn read_velocities(time_step: usize) -> Vec<Vec<Float>> {
         })
 }
 
-fn unify_densities(time_step: usize) -> LbResult<()> {
+fn unify_densities(time_step: usize, keep: bool) -> LbResult<()> {
     let dir = Path::new(crate::io::DATA_PATH).join(time_step.to_string());
     let prefix = "density";
     let header = "density";
-    crate::io::unify_parallel_csv_files(dir, prefix, header)
+    crate::io::unify_parallel_csv_files(dir, prefix, header, keep)
 }
 
-fn unify_velocities(time_step: usize, dim: usize) -> LbResult<()> {
+fn unify_velocities(time_step: usize, dim: usize, keep: bool) -> LbResult<()> {
     let dir = Path::new(crate::io::DATA_PATH).join(time_step.to_string());
     let prefix = "velocity";
     let directions = ["x", "y", "z"];
@@ -81,7 +81,7 @@ fn unify_velocities(time_step: usize, dim: usize) -> LbResult<()> {
         .map(|x| format!("velocity_{}", directions[x]))
         .collect::<Vec<String>>()
         .join(",");
-    crate::io::unify_parallel_csv_files(dir, prefix, &header)
+    crate::io::unify_parallel_csv_files(dir, prefix, &header, keep)
 }
 
 fn write_node_type_vtk<P: AsRef<Path>>(
@@ -211,9 +211,10 @@ pub fn post_vtk(config: Config, momentum_params: momentum::Parameters) {
     momentum_vtk(&config, &conversion_factor, &n, &coordinates);
 }
 
-pub fn post_unify(_config: Config, momentum_params: momentum::Parameters) {
+pub fn post_unify(config: Config, momentum_params: momentum::Parameters) {
+    let keep = config.keep;
     let dim = momentum_params.n.len();
-    momentum_unify(dim);
+    momentum_unify(dim, keep);
 }
 
 fn compute_physical_pressure(
@@ -274,7 +275,7 @@ pub fn momentum_vtk(
         });
 }
 
-pub fn momentum_unify(dim: usize) {
+pub fn momentum_unify(dim: usize, keep: bool) {
     crate::io::collect_time_steps()
         .unwrap_or_else(|e| {
             eprintln!("Error: {e}");
@@ -288,11 +289,11 @@ pub fn momentum_unify(dim: usize) {
                 "velocity".bold().yellow(),
                 time_step.to_string().bold().yellow()
             );
-            if let Err(e) = unify_densities(time_step) {
+            if let Err(e) = unify_densities(time_step, keep) {
                 eprintln!("Error unifying densities for time step {time_step}: {e}");
                 std::process::exit(1);
             };
-            if let Err(e) = unify_velocities(time_step, dim) {
+            if let Err(e) = unify_velocities(time_step, dim, keep) {
                 eprintln!("Error unifying velocities for time step {time_step}: {e}");
                 std::process::exit(1);
             };

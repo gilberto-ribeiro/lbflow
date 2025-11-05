@@ -216,6 +216,7 @@ pub fn unify_parallel_csv_files<P: AsRef<Path>>(
     dir: P,
     prefix: &str,
     header: &str,
+    keep: bool,
 ) -> LbResult<()> {
     let file_name = format!("{prefix}.csv");
     let path = dir.as_ref().join(&file_name);
@@ -224,7 +225,9 @@ pub fn unify_parallel_csv_files<P: AsRef<Path>>(
     writeln!(file, "{header}")?;
     data.iter()
         .for_each(|line| writeln!(file, "{line}").unwrap());
-    delete_parallel_files(dir.as_ref(), prefix)?;
+    if !keep {
+        delete_parallel_files(dir.as_ref(), prefix)?;
+    }
     Ok(())
 }
 
