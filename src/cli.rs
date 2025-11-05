@@ -170,7 +170,7 @@ pub fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
                 };
                 Ok(cfg)
             }
-            Some(("unify", _)) => {
+            Some(("unify", sub_m)) => {
                 let cfg = Config {
                     mode: Mode::PostUnify,
                     number_of_threads,
