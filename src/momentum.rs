@@ -1,6 +1,6 @@
 // ------------------------------------------------------------------------------- MODULES
 
-pub(crate) mod bc;
+pub mod bc;
 pub(crate) mod io;
 mod lattice;
 pub(crate) mod multiphase;
@@ -23,7 +23,6 @@ pub struct Parameters {
     pub collision_operator: CollisionOperator,
     pub force: Option<Box<dyn Fn(&Node) -> Vec<Float> + Send + Sync>>,
     pub multiphase_parameters: Option<multiphase::Parameters>,
-    pub tau: Float,
     pub delta_x: Float,
     pub delta_t: Float,
     pub physical_density: Float,
@@ -43,7 +42,6 @@ impl Default for Parameters {
             collision_operator: BGK(0.5),
             force: None,
             multiphase_parameters: None,
-            tau: 0.5,
             delta_x: 0.01,
             delta_t: 0.01,
             physical_density: 998.0,

@@ -1,4 +1,5 @@
 pub use crate::BoundaryFace::{self, *};
+pub use crate::velocity_set::VelocitySet::{self, *};
 pub use crate::CollisionOperator::{self, *};
 pub use crate::NodeType::{self, *};
 pub use crate::functions;

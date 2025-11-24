@@ -1,4 +1,4 @@
-mod bc;
+pub mod bc;
 mod io;
 mod lattice;
 mod node;
@@ -14,7 +14,6 @@ pub struct Parameters {
     pub scalar_name: String,
     pub collision_operator: CollisionOperator,
     pub source_value: Option<Box<dyn Fn(&Node) -> Float + Send + Sync>>,
-    pub tau_g: Float,
     pub initial_scalar_value: Vec<Float>,
     pub velocity_set: VelocitySet,
     pub boundary_conditions: Vec<(BoundaryFace, BoundaryCondition)>,
@@ -61,13 +60,6 @@ impl _ConversionFactor {
             diffusion_coefficient,
             physical_diffusion_coefficient,
         }
-    }
-
-    fn _from(momentum_params: &momentum::Parameters, passive_scalar_params: &Parameters) -> Self {
-        let tau_g = passive_scalar_params.tau_g;
-        let delta_x = momentum_params.delta_x;
-        let delta_t = momentum_params.delta_t;
-        _ConversionFactor::_new(tau_g, delta_x, delta_t)
     }
 }
 
