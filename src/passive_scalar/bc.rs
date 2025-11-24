@@ -1,5 +1,5 @@
 use super::Node;
-use crate::prelude::*;
+use crate::prelude_crate::*;
 
 pub use BoundaryCondition::*;
 
@@ -11,7 +11,7 @@ pub enum BoundaryCondition {
 }
 
 impl Node {
-    pub fn compute_anti_bounce_back_bc(
+    pub(super) fn compute_anti_bounce_back_bc(
         &self,
         boundary_face: &BoundaryFace,
         scalar_value: &Float,
@@ -19,13 +19,14 @@ impl Node {
     ) {
         let mut g = self.get_g();
         let g_star = self.get_g_star();
-        let w = self.get_w();
-        let c = self.get_c();
-        let q_faces = self.get_q_faces(boundary_face);
+        let vel_set_params = self.get_velocity_set_parameters();
+        let w = vel_set_params.get_w();
+        let c = vel_set_params.get_c();
+        let q_faces = vel_set_params.get_q_faces(boundary_face);
         let velocity = self.get_wall_velocity(boundary_face, velocity);
         let u_dot_u = velocity.iter().map(|u_x| u_x * u_x).sum::<Float>();
         q_faces.iter().for_each(|&i| {
-            let i_bar = self.get_opposite_direction(i);
+            let i_bar = vel_set_params.get_opposite_direction(i);
             let u_dot_c = velocity
                 .iter()
                 .zip(c[i].iter())
@@ -40,7 +41,11 @@ impl Node {
         self.set_g(g);
     }
 
-    pub fn compute_no_flux_bc(&self, boundary_face: &BoundaryFace, velocity: Option<&[Float]>) {
+    pub(super) fn compute_no_flux_bc(
+        &self,
+        boundary_face: &BoundaryFace,
+        velocity: Option<&[Float]>,
+    ) {
         self.compute_anti_bounce_back_bc(boundary_face, &self.get_scalar_value(), velocity);
     }
 
@@ -52,7 +57,8 @@ impl Node {
         match velocity {
             Some(velocity) => velocity.to_vec(),
             None => {
-                let i_normal = *self.get_face_normal_direction(boundary_face);
+                let vel_set_params = self.get_velocity_set_parameters();
+                let i_normal = vel_set_params.get_face_normal_direction(boundary_face);
                 let node_velocity = self.get_momentum_node().get_velocity();
                 let neighbor_velocity = self
                     .get_neighbor_node(i_normal)

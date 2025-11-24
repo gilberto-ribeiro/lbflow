@@ -1,10 +1,9 @@
-use crate::prelude::*;
-use crate::velocity_set::VectorComputation;
+use crate::prelude_crate::*;
 use std::fmt::{self, Debug};
 
 // -------------------------------------------------------------------------- STRUCT: Node
 
-pub struct Parameters {
+pub(super) struct Parameters {
     velocity_set_params: Arc<velocity_set::Parameters>,
     multiphase_params: Arc<Option<multiphase::Parameters>>,
 }
@@ -19,7 +18,7 @@ impl Default for Parameters {
 }
 
 impl Parameters {
-    pub fn new(
+    pub(super) fn new(
         velocity_set_params: Arc<velocity_set::Parameters>,
         multiphase_params: Arc<Option<multiphase::Parameters>>,
     ) -> Self {
@@ -29,7 +28,7 @@ impl Parameters {
         }
     }
 
-    fn test_default(dim: usize) -> Self {
+    pub(super) fn test_default(dim: usize) -> Self {
         Parameters {
             velocity_set_params: Arc::new(velocity_set::Parameters::test_default(dim)),
             multiphase_params: Arc::new(None),
@@ -75,7 +74,7 @@ impl Debug for Node {
 }
 
 impl Node {
-    pub fn new(
+    pub(super) fn new(
         density: Float,
         velocity: Vec<Float>,
         force: Arc<Option<Box<dyn Fn(&Node) -> Vec<Float> + Send + Sync>>>,
@@ -148,38 +147,17 @@ impl Default for Node {
 impl Node {
     /// # Examples
     /// ```
-    /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_density(), 1.0);
     /// assert_eq!(&node.get_density(), &1.0);
     /// ```
     pub fn get_density(&self) -> Float {
-        // *self.density.borrow()
         *self.density.read().unwrap()
     }
 
-    /// # Examples
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_density(), 1.0);
-    ///
-    /// node.set_density(1.1);
-    /// assert_eq!(node.get_density(), 1.1);
-    ///
-    /// node.set_density(1.2);
-    /// assert_eq!(node.get_density(), 1.2);
-    /// ```
     fn set_density(&self, density: Float) {
-        // self.density.replace(density);
         let mut density_guard = self.density.write().unwrap();
         *density_guard = density;
     }
@@ -187,10 +165,7 @@ impl Node {
     /// # Examples
     /// ## 2D
     /// ```
-    /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_velocity(), vec![0.0, 0.0]);
@@ -200,10 +175,7 @@ impl Node {
     /// ```
     /// ## 3D
     /// ```
-    /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(3);
     ///
     /// assert_eq!(node.get_velocity(), vec![0.0, 0.0, 0.0]);
@@ -212,81 +184,17 @@ impl Node {
     /// assert_eq!(&node.get_velocity(), &[0.0, 0.0, 0.0]);
     /// ```
     pub fn get_velocity(&self) -> Vec<Float> {
-        // self.velocity.borrow().clone()
         self.velocity.read().unwrap().clone()
     }
 
-    /// # Examples
-    /// ## 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_velocity(), vec![0.0, 0.0]);
-    ///
-    /// node.set_velocity(vec![0.1, 0.0]);
-    /// let mut velocity = node.get_velocity();
-    /// velocity[1] = 0.2;
-    /// node.set_velocity(velocity);
-    /// assert_eq!(node.get_velocity(), vec![0.1, 0.2]);
-    ///
-    /// let mut velocity = Vec::with_capacity(2);
-    /// let mut u_x = 0.3;
-    /// for i in 0..2 {
-    ///     velocity.push(u_x);
-    ///     u_x += 0.1;
-    /// }
-    /// node.set_velocity(velocity);
-    /// let actual = node.get_velocity();
-    /// let target = vec![0.3, 0.4];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    ///
-    /// let mut velocity = vec![0.0; 2];
-    /// let mut u_x = 0.5;
-    /// for i in 0..2 {
-    ///     velocity[i] = u_x;
-    ///     u_x += 0.1;
-    /// }
-    /// node.set_velocity(velocity);
-    /// let actual = node.get_velocity();
-    /// let target = vec![0.5, 0.6];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    /// ```
-    /// # 3D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(3);
-    ///
-    /// assert_eq!(node.get_velocity(), vec![0.0, 0.0, 0.0]);
-    ///
-    /// node.set_velocity(vec![0.1, 0.2, 0.0]);
-    /// let mut velocity = node.get_velocity();
-    /// velocity[2] = 0.3;
-    /// node.set_velocity(velocity);
-    /// assert_eq!(node.get_velocity(), vec![0.1, 0.2, 0.3]);
-    /// ```
     fn set_velocity(&self, velocity: Vec<Float>) {
-        // self.velocity.replace(velocity);
         let mut velocity_guard = self.velocity.write().unwrap();
         *velocity_guard = velocity;
     }
 
     /// # Examples
     /// ```
-    /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_f(), vec![0.0; 9]);
@@ -295,251 +203,37 @@ impl Node {
     /// assert_eq!(&node.get_f(), &[0.0; 9]);
     /// ```
     pub fn get_f(&self) -> Vec<Float> {
-        // self.f.borrow().clone()
         self.f.read().unwrap().clone()
     }
 
-    /// # Examples
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::constants::Float;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_f(), vec![0.0; 9]);
-    ///
-    /// node.set_f(vec![0.1, 0.0, 0.3, 0.0, 0.5, 0.0, 0.7, 0.0, 0.9]);
-    /// let mut f = node.get_f();
-    /// f[1] = 0.2;
-    /// f[3] = 0.4;
-    /// f[5] = 0.6;
-    /// f[7] = 0.8;
-    /// node.set_f(f);
-    /// assert_eq!(node.get_f(), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    ///
-    /// let mut f = Vec::with_capacity(9);
-    /// let mut f_i = 0.9;
-    /// for i in 0..9 {
-    ///    f.push(f_i);
-    ///    f_i -= 0.1;
-    /// }
-    /// node.set_f(f);
-    /// let actual = node.get_f();
-    /// let target = vec![0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    ///
-    /// let mut f = vec![0.0; 9];
-    /// let mut f_i = 0.05;
-    /// for i in 0..9 {
-    ///    f[i] = f_i;
-    ///    f_i += 0.05;
-    /// }
-    /// node.set_f(f);
-    /// let actual = node.get_f();
-    /// let target = vec![0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    ///
-    ///
-    /// let node = Node::test_default(3);
-    ///
-    /// assert_eq!(node.get_f(), vec![0.0; 27]);
-    ///
-    /// node.set_f(vec![0.1, 0.2, 0.0, 0.4, 0.5, 0.6, 0.7, 0.6, 0.0, 0.4, 0.3, 0.2, 0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.0, 0.6, 0.7, 0.6, 0.5, 0.4, 0.0, 0.2, 0.1]);
-    /// let mut f = node.get_f();
-    /// f[2] = 0.3;
-    /// f[8] = 0.5;
-    /// f[18] = 0.5;
-    /// f[24] = 0.3;
-    /// node.set_f(f);
-    /// assert_eq!(node.get_f(), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]);
-    /// ```
-    pub fn set_f(&self, f: Vec<Float>) {
-        // self.f.replace(f);
+    pub(super) fn set_f(&self, f: Vec<Float>) {
         let mut f_guard = self.f.write().unwrap();
         *f_guard = f;
     }
 
-    /// # Examples
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_f_eq(), vec![0.0; 9]);
-    /// assert_eq!(node.get_f_eq(), [0.0; 9]);
-    /// assert_eq!(node.get_f_eq(), &[0.0; 9]);
-    /// assert_eq!(&node.get_f_eq(), &[0.0; 9]);
-    /// ```
-    pub fn get_f_eq(&self) -> Vec<Float> {
-        // self.f_eq.borrow().clone()
+    pub(super) fn get_f_eq(&self) -> Vec<Float> {
         self.f_eq.read().unwrap().clone()
     }
 
-    /// # Examples
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::constants::Float;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_f_eq(), vec![0.0; 9]);
-    ///
-    /// node.set_f_eq(vec![0.1, 0.0, 0.3, 0.0, 0.5, 0.0, 0.7, 0.0, 0.9]);
-    /// let mut f_eq = node.get_f_eq();
-    /// f_eq[1] = 0.2;
-    /// f_eq[3] = 0.4;
-    /// f_eq[5] = 0.6;
-    /// f_eq[7] = 0.8;
-    /// node.set_f_eq(f_eq);
-    /// assert_eq!(node.get_f_eq(), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    ///
-    /// let mut f_eq = Vec::with_capacity(9);
-    /// let mut f_eq_i = 0.9;
-    /// for i in 0..9 {
-    ///    f_eq.push(f_eq_i);
-    ///    f_eq_i -= 0.1;
-    /// }
-    /// node.set_f_eq(f_eq);
-    /// let actual = node.get_f_eq();
-    /// let target = vec![0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    ///
-    /// let mut f_eq = vec![0.0; 9];
-    /// let mut f_eq_i = 0.05;
-    /// for i in 0..9 {
-    ///    f_eq[i] = f_eq_i;
-    ///    f_eq_i += 0.05;
-    /// }
-    /// node.set_f_eq(f_eq);
-    /// let actual = node.get_f_eq();
-    /// let target = vec![0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    ///
-    ///
-    /// let node = Node::test_default(3);
-    ///
-    /// assert_eq!(node.get_f_eq(), vec![0.0; 27]);
-    ///
-    /// node.set_f_eq(vec![0.1, 0.2, 0.0, 0.4, 0.5, 0.6, 0.7, 0.6, 0.0, 0.4, 0.3, 0.2, 0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.0, 0.6, 0.7, 0.6, 0.5, 0.4, 0.0, 0.2, 0.1]);
-    /// let mut f_eq = node.get_f_eq();
-    /// f_eq[2] = 0.3;
-    /// f_eq[8] = 0.5;
-    /// f_eq[18] = 0.5;
-    /// f_eq[24] = 0.3;
-    /// node.set_f_eq(f_eq);
-    /// assert_eq!(node.get_f_eq(), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]);
-    /// ```
-    fn set_f_eq(&self, f_eq: Vec<Float>) {
-        // self.f_eq.replace(f_eq);
+    pub(super) fn set_f_eq(&self, f_eq: Vec<Float>) {
         let mut f_eq_guard = self.f_eq.write().unwrap();
         *f_eq_guard = f_eq;
     }
 
-    /// # Examples
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_f_star(), vec![0.0; 9]);
-    /// assert_eq!(node.get_f_star(), [0.0; 9]);
-    /// assert_eq!(node.get_f_star(), &[0.0; 9]);
-    /// assert_eq!(&node.get_f_star(), &[0.0; 9]);
-    /// ```
-    pub fn get_f_star(&self) -> Vec<Float> {
-        // self.f_star.borrow().clone()
+    pub(super) fn get_f_star(&self) -> Vec<Float> {
         self.f_star.read().unwrap().clone()
     }
 
-    /// # Examples
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::constants::Float;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_f_star(), vec![0.0; 9]);
-    ///
-    /// node.set_f_star(vec![0.1, 0.0, 0.3, 0.0, 0.5, 0.0, 0.7, 0.0, 0.9]);
-    /// let mut f_star = node.get_f_star();
-    /// f_star[1] = 0.2;
-    /// f_star[3] = 0.4;
-    /// f_star[5] = 0.6;
-    /// f_star[7] = 0.8;
-    /// node.set_f_star(f_star);
-    /// assert_eq!(node.get_f_star(), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    ///
-    /// let mut f_star = Vec::with_capacity(9);
-    /// let mut f_star_i = 0.9;
-    /// for i in 0..9 {
-    ///    f_star.push(f_star_i);
-    ///    f_star_i -= 0.1;
-    /// }
-    /// node.set_f_star(f_star);
-    /// let actual = node.get_f_star();
-    /// let target = vec![0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    ///
-    /// let mut f_star = vec![0.0; 9];
-    /// let mut f_star_i = 0.05;
-    /// for i in 0..9 {
-    ///    f_star[i] = f_star_i;
-    ///    f_star_i += 0.05;
-    /// }
-    /// node.set_f_star(f_star);
-    /// let actual = node.get_f_star();
-    /// let target = vec![0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    ///
-    ///
-    /// let node = Node::test_default(3);
-    ///
-    /// assert_eq!(node.get_f_star(), vec![0.0; 27]);
-    ///
-    /// node.set_f_star(vec![0.1, 0.2, 0.0, 0.4, 0.5, 0.6, 0.7, 0.6, 0.0, 0.4, 0.3, 0.2, 0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.0, 0.6, 0.7, 0.6, 0.5, 0.4, 0.0, 0.2, 0.1]);
-    /// let mut f_star = node.get_f_star();
-    /// f_star[2] = 0.3;
-    /// f_star[8] = 0.5;
-    /// f_star[18] = 0.5;
-    /// f_star[24] = 0.3;
-    /// node.set_f_star(f_star);
-    /// assert_eq!(node.get_f_star(), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]);
-    /// ```
-    fn set_f_star(&self, f_star: Vec<Float>) {
-        // self.f_star.replace(f_star);
+    pub(super) fn set_f_star(&self, f_star: Vec<Float>) {
         let mut f_star_guard = self.f_star.write().unwrap();
         *f_star_guard = f_star;
     }
 
-    pub fn get_phi(&self) -> Option<Float> {
-        // *self.phi.borrow()
+    fn get_phi(&self) -> Option<Float> {
         *self.phi.read().unwrap()
     }
 
     fn set_phi(&self, phi: Float) {
-        // self.phi.replace(Some(phi));
         let mut phi_guard = self.phi.write().unwrap();
         *phi_guard = Some(phi);
     }
@@ -555,10 +249,8 @@ impl Node {
 
     /// # Examples
     /// ```
-    /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
     /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_node_type(), &NodeType::Fluid);
@@ -570,10 +262,7 @@ impl Node {
 
     /// # Examples
     /// ```
-    /// # use std::sync::Arc;
     /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
     /// let node = Node::test_default(2);
     ///
     /// assert_eq!(node.get_index(), &vec![3, 7]);
@@ -587,44 +276,7 @@ impl Node {
         &self.coordinates
     }
 
-    /// # Examples
-    /// ## 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::{Lattice, Node};
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(2);
-    ///
-    /// let node = momentum_lattice.get_node_by_index(&vec![3, 7]);
-    /// let neighbor_nodes = node.get_neighbor_nodes();
-    ///
-    /// assert_eq!(neighbor_nodes[&0].get_index(), &vec![3, 7]);
-    /// assert_eq!(neighbor_nodes[&1].get_index(), &vec![4, 7]);
-    /// assert_eq!(neighbor_nodes[&2].get_index(), &vec![3, 8]);
-    /// assert_eq!(neighbor_nodes[&3].get_index(), &vec![2, 7]);
-    /// assert_eq!(neighbor_nodes[&4].get_index(), &vec![3, 6]);
-    /// assert_eq!(neighbor_nodes[&5].get_index(), &vec![4, 8]);
-    /// assert_eq!(neighbor_nodes[&6].get_index(), &vec![2, 8]);
-    /// assert_eq!(neighbor_nodes[&7].get_index(), &vec![2, 6]);
-    /// assert_eq!(neighbor_nodes[&8].get_index(), &vec![4, 6]);
-    /// ```
-    /// ## 3D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::{Lattice, Node};
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(3);
-    ///
-    /// let node = momentum_lattice.get_node_by_index(&vec![3, 5, 7]);
-    /// let neighbor_nodes = node.get_neighbor_nodes();
-    ///
-    /// assert_eq!(neighbor_nodes[&0].get_index(), &vec![3, 5, 7]);
-    /// assert_eq!(neighbor_nodes[&1].get_index(), &vec![4, 5, 7]);
-    /// assert_eq!(neighbor_nodes[&7].get_index(), &vec![4, 6, 7]);
-    /// assert_eq!(neighbor_nodes[&19].get_index(), &vec![4, 6, 8]);
-    /// ```
-    pub fn get_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
-        // self.neighbor_nodes.borrow().as_ref().cloned().unwrap()
+    pub(super) fn get_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
         self.neighbor_nodes
             .read()
             .unwrap()
@@ -634,17 +286,11 @@ impl Node {
     }
 
     pub(super) fn set_neighbor_nodes(&self, neighbor_nodes: HashMap<usize, Arc<Node>>) {
-        // self.neighbor_nodes.replace(Some(neighbors));
         let mut neighbor_nodes_guard = self.neighbor_nodes.write().unwrap();
         *neighbor_nodes_guard = Some(neighbor_nodes);
     }
 
-    pub fn get_bounce_back_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
-        // self.bounce_back_neighbor_nodes
-        //     .borrow()
-        //     .as_ref()
-        //     .cloned()
-        //     .unwrap()
+    fn get_bounce_back_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
         self.bounce_back_neighbor_nodes
             .read()
             .unwrap()
@@ -657,91 +303,18 @@ impl Node {
         &self,
         bounce_back_neighbor_nodes: HashMap<usize, Arc<Node>>,
     ) {
-        // node.bounce_back_neighbor_nodes
-        //     .replace(Some(bounce_back_neighbor_nodes));
         let mut bounce_back_neighbor_nodes_guard = self.bounce_back_neighbor_nodes.write().unwrap();
         *bounce_back_neighbor_nodes_guard = Some(bounce_back_neighbor_nodes);
     }
 
-    /// # Examples
-    /// ## 2D
-    /// ### Inner node
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::{Lattice, Node};
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(2);
-    ///
-    /// let node = momentum_lattice.get_node_by_index(&vec![3, 7]);
-    ///
-    /// assert_eq!(node.get_neighbor_node(0).get_index(), &vec![3, 7]);
-    /// assert_eq!(node.get_neighbor_node(1).get_index(), &vec![4, 7]);
-    /// assert_eq!(node.get_neighbor_node(2).get_index(), &vec![3, 8]);
-    /// assert_eq!(node.get_neighbor_node(3).get_index(), &vec![2, 7]);
-    /// assert_eq!(node.get_neighbor_node(4).get_index(), &vec![3, 6]);
-    /// assert_eq!(node.get_neighbor_node(5).get_index(), &vec![4, 8]);
-    /// assert_eq!(node.get_neighbor_node(6).get_index(), &vec![2, 8]);
-    /// assert_eq!(node.get_neighbor_node(7).get_index(), &vec![2, 6]);
-    /// assert_eq!(node.get_neighbor_node(8).get_index(), &vec![4, 6]);
-    /// ```
-    /// ### Edge node
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::{Lattice, Node};
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(2);
-    ///
-    /// let node = momentum_lattice.get_node_by_index(&vec![9, 9]);
-    ///
-    /// assert_eq!(node.get_neighbor_node(0).get_index(), &vec![9, 9]);
-    /// assert_eq!(node.get_neighbor_node(1).get_index(), &vec![0, 9]);
-    /// assert_eq!(node.get_neighbor_node(2).get_index(), &vec![9, 0]);
-    /// assert_eq!(node.get_neighbor_node(3).get_index(), &vec![8, 9]);
-    /// assert_eq!(node.get_neighbor_node(4).get_index(), &vec![9, 8]);
-    /// assert_eq!(node.get_neighbor_node(5).get_index(), &vec![0, 0]);
-    /// assert_eq!(node.get_neighbor_node(6).get_index(), &vec![8, 0]);
-    /// assert_eq!(node.get_neighbor_node(7).get_index(), &vec![8, 8]);
-    /// assert_eq!(node.get_neighbor_node(8).get_index(), &vec![0, 8]);
-    ///
-    /// assert_eq!(node.get_neighbor_node(3).get_neighbor_node(2).get_index(), &vec![8, 0]);
-    /// ```
-    /// ## 3D
-    /// ### Inner node
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::{Lattice, Node};
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(3);
-    ///
-    /// let node = momentum_lattice.get_node_by_index(&vec![3, 5, 7]);
-    ///
-    /// assert_eq!(node.get_neighbor_node(0).get_index(), &vec![3, 5, 7]);
-    /// assert_eq!(node.get_neighbor_node(1).get_index(), &vec![4, 5, 7]);
-    /// assert_eq!(node.get_neighbor_node(7).get_index(), &vec![4, 6, 7]);
-    /// assert_eq!(node.get_neighbor_node(19).get_index(), &vec![4, 6, 8]);
-    /// ```
-    /// ### Edge node
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::{Lattice, Node};
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(3);
-    ///
-    /// let node = momentum_lattice.get_node_by_index(&vec![9, 9, 9]);
-    ///
-    /// assert_eq!(node.get_neighbor_node(0).get_index(), &vec![9, 9, 9]);
-    /// assert_eq!(node.get_neighbor_node(1).get_index(), &vec![0, 9, 9]);
-    /// assert_eq!(node.get_neighbor_node(7).get_index(), &vec![0, 0, 9]);
-    /// assert_eq!(node.get_neighbor_node(19).get_index(), &vec![0, 0, 0]);
-    /// ```
-    pub fn get_neighbor_node(&self, i: usize) -> Arc<Node> {
+    pub(super) fn get_neighbor_node(&self, i: usize) -> Arc<Node> {
         self.get_neighbor_nodes()
             .get(&i)
             .cloned()
             .expect("Neighbor node not found")
     }
 
-    pub fn get_scalar_nodes(&self) -> HashMap<String, Arc<passive_scalar::Node>> {
+    fn get_scalar_nodes(&self) -> HashMap<String, Arc<passive_scalar::Node>> {
         self.scalar_nodes.read().unwrap().as_ref().cloned().unwrap()
     }
 
@@ -752,7 +325,7 @@ impl Node {
             .expect("Scalar node not found")
     }
 
-    pub fn append_scalar_node(&self, scalar_name: String, node: Arc<passive_scalar::Node>) {
+    pub(crate) fn append_scalar_node(&self, scalar_name: String, node: Arc<passive_scalar::Node>) {
         self.scalar_nodes
             .write()
             .unwrap()
@@ -760,217 +333,16 @@ impl Node {
             .insert(scalar_name, node);
     }
 
-    /// # Examples
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// let shallow_node = node.get_shallow_node();
-    /// assert_eq!(shallow_node.get_density(), 1.0);
-    /// assert_eq!(shallow_node.get_velocity(), vec![0.0, 0.0]);
-    /// ```
-    pub fn get_shallow_node(&self) -> &ShallowNode {
+    fn get_shallow_node(&self) -> &ShallowNode {
         &self.shallow_node
     }
-}
 
-impl Node {
-    pub fn get_multiphase_parameters(&self) -> &Option<multiphase::Parameters> {
+    fn get_multiphase_parameters(&self) -> &Option<multiphase::Parameters> {
         &self.multiphase_parameters
     }
 
-    pub fn get_velocity_set_parameters(&self) -> &Arc<velocity_set::Parameters> {
+    pub(super) fn get_velocity_set_parameters(&self) -> &Arc<velocity_set::Parameters> {
         &self.velocity_set_parameters
-    }
-
-    /// # Examples
-    /// ## 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_d(), &2);
-    /// ```
-    /// ## 3D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(3);
-    ///
-    /// assert_eq!(node.get_d(), &3);
-    /// ```
-    pub fn get_d(&self) -> &usize {
-        &self.get_velocity_set_parameters().d
-    }
-
-    /// # Examples
-    /// ## 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_q(), &9);
-    /// ```
-    /// ## 3D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(3);
-    ///
-    /// assert_eq!(node.get_q(), &27);
-    /// ```
-    pub fn get_q(&self) -> &usize {
-        &self.get_velocity_set_parameters().q
-    }
-
-    /// # Examples
-    /// ## 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// let c = node.get_c();
-    ///
-    /// assert_eq!(c[0], vec![0, 0]);
-    /// assert_eq!(c[1], vec![1, 0]);
-    /// assert_eq!(c[5], vec![1, 1]);
-    /// ```
-    /// ## 3D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(3);
-    ///
-    /// let c = node.get_c();
-    ///
-    /// assert_eq!(c[0], vec![0, 0, 0]);
-    /// assert_eq!(c[1], vec![1, 0, 0]);
-    /// assert_eq!(c[7], vec![1, 1, 0]);
-    /// assert_eq!(c[19], vec![1, 1, 1]);
-    /// ```
-    pub fn get_c(&self) -> &Vec<Vec<i32>> {
-        &self.get_velocity_set_parameters().c
-    }
-
-    /// # Examples
-    /// ## 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// let w = node.get_w();
-    ///
-    /// assert!(w[0] - 4.0 / 9.0 < 1e-12);
-    /// assert!(w[1] - 1.0 / 9.0 < 1e-12);
-    /// assert!(w[5] - 1.0 / 36.0 < 1e-12);
-    /// ```
-    /// ## 3D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(3);
-    ///
-    /// let w = node.get_w();
-    ///
-    /// assert!(w[0] - 8.0 / 27.0 < 1e-12);
-    /// assert!(w[1] - 2.0 / 27.0 < 1e-12);
-    /// assert!(w[7] - 1.0 / 54.0 < 1e-12);
-    /// assert!(w[19] - 1.0 / 216.0 < 1e-12);
-    /// ```
-    pub fn get_w(&self) -> &Vec<Float> {
-        &self.get_velocity_set_parameters().w
-    }
-
-    /// # Examples
-    /// ## 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// let q_bar = node.get_q_bar();
-    ///
-    /// assert_eq!(q_bar[0], 0);
-    /// assert_eq!(q_bar[1], 3);
-    /// assert_eq!(q_bar[5], 7);
-    /// ```
-    /// ## 3D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(3);
-    ///
-    /// let q_bar = node.get_q_bar();
-    ///
-    /// assert_eq!(q_bar[0], 0);
-    /// assert_eq!(q_bar[1], 2);
-    /// assert_eq!(q_bar[7], 8);
-    /// assert_eq!(q_bar[19], 20);
-    /// ```
-    pub fn get_q_bar(&self) -> &Vec<usize> {
-        &self.get_velocity_set_parameters().q_bar
-    }
-
-    pub fn get_q_faces(&self, boundary_face: &BoundaryFace) -> &Vec<usize> {
-        self.get_velocity_set_parameters()
-            .q_faces
-            .get(boundary_face)
-            .expect("Boundary face not found")
-    }
-
-    pub fn get_face_normal_direction(&self, boundary_face: &BoundaryFace) -> &usize {
-        self.get_velocity_set_parameters()
-            .face_normal_directions
-            .get(boundary_face)
-            .expect("Boundary face not found")
-    }
-
-    pub fn get_velocity_computation(&self) -> Option<VectorComputation> {
-        self.get_velocity_set_parameters().velocity_computation
-    }
-
-    pub fn get_opposite_direction(&self, direction: usize) -> usize {
-        self.get_q_bar()[direction]
-    }
-
-    pub fn get_mrt_matrix(&self) -> &Vec<Vec<Float>> {
-        &self.get_velocity_set_parameters().mrt_matrix
-    }
-
-    pub fn get_mrt_inverse_matrix(&self) -> &Vec<Vec<Float>> {
-        &self.get_velocity_set_parameters().mrt_inverse_matrix
-    }
-
-    pub fn get_mrt_equilibrium_moments_computation(&self) -> Option<VectorComputation> {
-        self.get_velocity_set_parameters()
-            .mrt_equilibrium_moments_computation
     }
 
     fn get_force(&self) -> Option<Vec<Float>> {
@@ -993,140 +365,23 @@ impl Node {
 }
 
 impl Node {
-    /// # Examples
-    /// ## 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_density(), 1.0);
-    ///
-    /// assert_eq!(node.get_f(), vec![0.0; 9]);
-    /// node.compute_density();
-    /// assert!((node.get_density() - 0.0).abs() < 1e-12);
-    ///
-    /// node.set_f(vec![0.1; 9]);
-    /// assert_eq!(node.get_f(), vec![0.1; 9]);
-    /// node.compute_density();
-    /// assert!((node.get_density() - 0.9).abs() < 1e-12);
-    ///
-    /// node.set_f(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    /// assert_eq!(node.get_f(), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    /// node.compute_density();
-    /// assert!((node.get_density() - 4.5).abs() < 1e-12);
-    /// ```
-    /// ## 3D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(3);
-    ///
-    /// assert_eq!(node.get_density(), 1.0);
-    ///
-    /// assert_eq!(node.get_f(), vec![0.0; 27]);
-    /// node.compute_density();
-    /// assert!((node.get_density() - 0.0).abs() < 1e-12);
-    ///
-    /// node.set_f(vec![0.1; 27]);
-    /// assert_eq!(node.get_f(), vec![0.1; 27]);
-    /// node.compute_density();
-    /// assert!((node.get_density() - 2.7).abs() < 1e-12);
-    /// ```
-    pub fn compute_density(&self) {
+    pub(super) fn compute_density(&self) {
         let f = self.get_f();
         let density = f.iter().sum::<Float>();
         self.set_density(density);
         self.compute_phi();
     }
 
-    /// # Examples
-    /// ## 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_velocity(), vec![0.0; 2]);
-    ///
-    /// // Implicit computation:
-    /// assert_eq!(node.get_f(), vec![0.0; 9]);
-    /// node.compute_velocity(false);
-    /// let actual = node.get_velocity();
-    /// let target = vec![0.0; 2];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    ///
-    /// node.set_f(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    /// assert_eq!(node.get_f(), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    /// node.compute_velocity(false);
-    /// let actual = node.get_velocity();
-    /// let target = vec![-0.2, -0.6];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    ///
-    /// // Explicit computation:
-    /// node.set_density(0.5);
-    /// assert_eq!(node.get_density(), 0.5);
-    /// node.compute_velocity(true);
-    /// let actual = node.get_velocity();
-    /// let target = vec![-0.4, -1.2];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    /// ```
-    /// ## 3D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(3);
-    ///
-    /// assert_eq!(node.get_velocity(), vec![0.0; 3]);
-    ///
-    /// // Implicit computation:
-    /// assert_eq!(node.get_f(), vec![0.0; 27]);
-    /// node.compute_velocity(false);
-    /// let actual = node.get_velocity();
-    /// let target = vec![0.0; 3];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    ///
-    /// node.set_f(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]);
-    /// assert_eq!(node.get_f(), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]);
-    /// node.compute_velocity(false);
-    /// let actual = node.get_velocity();
-    /// let target = vec![-0.1, 0.1, 0.3];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    ///
-    /// // Explicit computation:
-    /// node.set_density(0.5);
-    /// assert_eq!(node.get_density(), 0.5);
-    /// node.compute_velocity(true);
-    /// let actual = node.get_velocity();
-    /// let target = vec![-0.2, 0.2, 0.6];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    /// ```
-    pub fn compute_velocity(&self, explicit_computation: bool) {
+    pub(super) fn compute_velocity(&self, explicit_computation: bool) {
         let f = self.get_f();
         let density = self.get_density();
-        let d = *self.get_d();
-        let c = self.get_c();
-        let mut velocity = match (explicit_computation, self.get_velocity_computation()) {
+        let vel_set_params = self.get_velocity_set_parameters();
+        let d = vel_set_params.get_d();
+        let c = vel_set_params.get_c();
+        let mut velocity = match (
+            explicit_computation,
+            vel_set_params.get_velocity_computation(),
+        ) {
             (true, Some(velocity_computation)) => velocity_computation(density, f),
             (_, _) => {
                 let mut velocity = Vec::with_capacity(d);
@@ -1162,25 +417,7 @@ impl Node {
     /// $$ f\_{6}^{\text{eq}} = \frac{\rho}{36}\left[1-3\left(u\_{x}-u\_{y}\right)-9u\_{x}u\_{y}+3\mathbf{u}^{2}\right] $$
     /// $$ f\_{7}^{\text{eq}} = \frac{\rho}{36}\left[1-3\left(u\_{x}+u\_{y}\right)+9u\_{x}u\_{y}+3\mathbf{u}^{2}\right] $$
     /// $$ f\_{8}^{\text{eq}} = \frac{\rho}{36}\left[1+3\left(u\_{x}-u\_{y}\right)-9u\_{x}u\_{y}+3\mathbf{u}^{2}\right] $$
-    /// # Examples
-    /// ## 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// node.set_f(vec![0.1; 9]);
-    /// node.compute_density(); // density = 0.9
-    /// node.compute_equilibrium();
-    /// let actual = node.get_f_eq();
-    /// let target = vec![0.4, 0.1, 0.1, 0.1, 0.1, 0.025, 0.025, 0.025, 0.025];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    /// ```
-    pub fn compute_equilibrium(&self) {
+    pub(super) fn compute_equilibrium(&self) {
         let f_eq = kernel::equilibrium(
             self.get_density(),
             &self.get_velocity(),
@@ -1189,27 +426,7 @@ impl Node {
         self.set_f_eq(f_eq);
     }
 
-    /// # Examples
-    /// ## 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// use lbflow::constants::DELTA_T;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// node.set_f(vec![0.1; 9]);
-    /// node.set_f_eq(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    ///
-    /// node.compute_bgk_collision();
-    /// let actual = node.get_f_star();
-    /// let target = vec![0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    /// ```
-    pub fn compute_bgk_collision(&self, tau: Float) {
+    pub(super) fn compute_bgk_collision(&self, tau: Float) {
         let mut f_star = kernel::bgk_collision(
             &self.get_f(),
             &self.get_f_eq(),
@@ -1233,7 +450,7 @@ impl Node {
         self.set_f_star(f_star);
     }
 
-    pub fn compute_trt_collision(&self, omega_plus: Float, omega_minus: Float) {
+    pub(super) fn compute_trt_collision(&self, omega_plus: Float, omega_minus: Float) {
         let f_star = kernel::trt_collision(
             &self.get_f(),
             &self.get_f_eq(),
@@ -1244,7 +461,7 @@ impl Node {
         self.set_f_star(f_star);
     }
 
-    pub fn compute_mrt_collision(&self, relaxation_vector: &[Float]) {
+    pub(super) fn compute_mrt_collision(&self, relaxation_vector: &[Float]) {
         let f_star = kernel::mrt_collision(
             self.get_density(),
             &self.get_velocity(),
@@ -1257,95 +474,33 @@ impl Node {
     }
 
     /// $$ f\_{i}(\mathbf{x}+\mathbf{c}\_{i}\Delta t, t+\Delta t) = f\_{i}^{\star}(\mathbf{x},t) $$
-    /// # Examples
-    /// ## Example 1
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::{Lattice, Node};
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(2);
-    ///
-    /// let node = momentum_lattice.get_node_by_index(&vec![3, 7]);
-    ///
-    /// node.get_neighbor_node(0).set_f_star(vec![0.1; 9]);
-    /// node.get_neighbor_node(1).set_f_star(vec![0.2; 9]);
-    /// node.get_neighbor_node(2).set_f_star(vec![0.3; 9]);
-    /// node.get_neighbor_node(3).set_f_star(vec![0.4; 9]);
-    /// node.get_neighbor_node(4).set_f_star(vec![0.5; 9]);
-    /// node.get_neighbor_node(5).set_f_star(vec![0.6; 9]);
-    /// node.get_neighbor_node(6).set_f_star(vec![0.7; 9]);
-    /// node.get_neighbor_node(7).set_f_star(vec![0.8; 9]);
-    /// node.get_neighbor_node(8).set_f_star(vec![0.9; 9]);
-    ///
-    /// node.compute_streaming();
-    /// assert_eq!(node.get_f(), vec![0.1, 0.4, 0.5, 0.2, 0.3, 0.8, 0.9, 0.6, 0.7]);
-    /// ```
-    /// ## Example 2
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::{Lattice, Node};
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(2);
-    ///
-    /// let node = momentum_lattice.get_node_by_index(&vec![3, 7]);
-    ///
-    /// //                                          0    1    2    3    4    5    6    7    8
-    /// node.get_neighbor_node(0).set_f_star(vec![1.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    /// node.get_neighbor_node(1).set_f_star(vec![0.1, 0.2, 0.3, 1.0, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    /// node.get_neighbor_node(2).set_f_star(vec![0.1, 0.2, 0.3, 0.4, 1.0, 0.6, 0.7, 0.8, 0.9]);
-    /// node.get_neighbor_node(3).set_f_star(vec![0.1, 1.0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    /// node.get_neighbor_node(4).set_f_star(vec![0.1, 0.2, 1.0, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
-    /// node.get_neighbor_node(5).set_f_star(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0, 0.9]);
-    /// node.get_neighbor_node(6).set_f_star(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0]);
-    /// node.get_neighbor_node(7).set_f_star(vec![0.1, 0.2, 0.3, 0.4, 0.5, 1.0, 0.7, 0.8, 0.9]);
-    /// node.get_neighbor_node(8).set_f_star(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1.0, 0.8, 0.9]);
-    ///
-    /// node.compute_streaming();
-    /// assert_eq!(node.get_f(), vec![1.0; 9]);
-    /// ```
-    pub fn compute_streaming(&self) {
-        let q = *self.get_q();
+    pub(super) fn compute_streaming(&self) {
+        let vel_set_params = self.get_velocity_set_parameters();
+        let q = vel_set_params.get_q();
         let mut f = vec![0.0; q];
         self.get_neighbor_nodes()
             .iter()
             .for_each(|(i, neighbor_node)| {
-                let i_bar = self.get_opposite_direction(*i);
+                let i_bar = vel_set_params.get_opposite_direction(*i);
                 f[i_bar] = neighbor_node.get_f_star()[i_bar];
             });
         self.set_f(f);
     }
 
-    pub fn compute_inner_bounce_back(&self) {
+    pub(super) fn compute_inner_bounce_back(&self) {
         let mut f = self.get_f();
         let f_star = self.get_f_star();
+        let vel_set_params = self.get_velocity_set_parameters();
         self.get_bounce_back_neighbor_nodes()
             .iter()
             .for_each(|(&i, _)| {
-                let i_bar = self.get_opposite_direction(i);
+                let i_bar = vel_set_params.get_opposite_direction(i);
                 f[i_bar] = f_star[i];
             });
         self.set_f(f);
     }
 
-    /// # Examples
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// node.set_density(0.95);
-    /// node.set_velocity(vec![0.15, -0.25]);
-    /// let (node_residual_density, node_residual_velocity) = node.compute_node_residuals();
-    /// assert!((node_residual_density - (-0.05)).abs() < 1e-12);
-    /// let actual = node_residual_velocity;
-    /// let target = vec![0.15, -0.25];
-    /// for (a, b) in actual.iter().zip(target.iter()) {
-    ///     assert!((a - b).abs() < 1e-12);
-    /// }
-    /// ```
-    pub fn compute_node_residuals(&self) -> (Float, Vec<Float>) {
+    pub(super) fn compute_node_residuals(&self) -> (Float, Vec<Float>) {
         let density = self.get_density();
         let velocity = self.get_velocity();
         let shallow_density = self.get_shallow_node().get_density();
@@ -1354,40 +509,19 @@ impl Node {
         let node_residual_velocity = velocity
             .iter()
             .zip(shallow_velocity.iter())
-            .map(|(u_x, su_x)| (u_x - su_x))
+            .map(|(u_x, su_x)| u_x - su_x)
             .collect::<Vec<Float>>();
         (node_residual_density, node_residual_velocity)
     }
 
-    /// # Examples
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::Node;
-    /// # use lbflow::NodeType;
-    /// # use lbflow::velocity_set::velocity_set::Parameters;
-    /// let node = Node::test_default(2);
-    ///
-    /// let shallow_node = node.get_shallow_node();
-    /// assert_eq!(shallow_node.get_density(), 1.0);
-    /// assert_eq!(shallow_node.get_velocity(), vec![0.0, 0.0]);
-    ///
-    /// node.set_density(0.9);
-    /// node.set_velocity(vec![0.1, -0.1]);
-    /// assert_eq!(shallow_node.get_density(), 1.0);
-    /// assert_eq!(shallow_node.get_velocity(), vec![0.0, 0.0]);
-    ///
-    /// node.update_shallow_node();
-    /// assert_eq!(shallow_node.get_density(), 0.9);
-    /// assert_eq!(shallow_node.get_velocity(), vec![0.1, -0.1]);
-    /// ```
-    pub fn update_shallow_node(&self) {
+    pub(super) fn update_shallow_node(&self) {
         let density = self.get_density();
         let velocity = self.get_velocity();
         self.get_shallow_node().set_density(density);
         self.get_shallow_node().set_velocity(velocity);
     }
 
-    pub fn compute_phi(&self) {
+    pub(super) fn compute_phi(&self) {
         if self.get_multiphase_parameters().is_some() {
             let density = self.get_density();
             let phi = kernel::pseudo_potential(density);
@@ -1438,13 +572,13 @@ impl Node {
 // ------------------------------------------------------------------- STRUCT: ShallowNode
 
 #[derive(Debug)]
-pub struct ShallowNode {
-    pub density: RwLock<Float>,
-    pub velocity: RwLock<Vec<Float>>,
+struct ShallowNode {
+    density: RwLock<Float>,
+    velocity: RwLock<Vec<Float>>,
 }
 
 impl ShallowNode {
-    pub fn new(density: Float, velocity: Vec<Float>) -> Self {
+    fn new(density: Float, velocity: Vec<Float>) -> Self {
         ShallowNode {
             density: RwLock::new(density),
             velocity: RwLock::new(velocity),
@@ -1453,61 +587,735 @@ impl ShallowNode {
 }
 
 impl ShallowNode {
-    /// # Examples
-    /// ```
-    /// # use lbflow::momentum::ShallowNode;
-    /// let shallow_node = ShallowNode::new(1.0, vec![0.0, 0.0]);
-    ///
-    /// assert_eq!(shallow_node.get_density(), 1.0);
-    /// ```
-    pub fn get_density(&self) -> Float {
-        // *self.density.borrow()
+    fn get_density(&self) -> Float {
         *self.density.read().unwrap()
     }
 
-    /// # Examples
-    /// ```
-    /// # use lbflow::momentum::ShallowNode;
-    /// let shallow_node = ShallowNode::new(1.0, vec![0.0, 0.0]);
-    ///
-    /// shallow_node.set_density(0.9);
-    /// assert_eq!(shallow_node.get_density(), 0.9);
-    ///
-    /// shallow_node.set_density(1.1);
-    /// assert_eq!(shallow_node.get_density(), 1.1);
-    /// ```
-    pub fn set_density(&self, density: Float) {
-        // self.density.replace(density);
+    fn set_density(&self, density: Float) {
         let mut density_guard = self.density.write().unwrap();
         *density_guard = density;
     }
 
-    /// # Examples
-    /// ```
-    /// # use lbflow::momentum::ShallowNode;
-    /// let shallow_node = ShallowNode::new(1.0, vec![0.0, 0.0]);
-    ///
-    /// assert_eq!(shallow_node.get_velocity(), vec![0.0, 0.0]);
-    /// ```
-    pub fn get_velocity(&self) -> Vec<Float> {
-        // self.velocity.borrow().clone()
+    fn get_velocity(&self) -> Vec<Float> {
         self.velocity.read().unwrap().clone()
     }
 
-    /// # Examples
-    /// ```
-    /// # use lbflow::momentum::ShallowNode;
-    /// let shallow_node = ShallowNode::new(1.0, vec![0.0, 0.0]);
-    ///
-    /// shallow_node.set_velocity(vec![0.1, -0.1]);
-    /// assert_eq!(shallow_node.get_velocity(), vec![0.1, -0.1]);
-    ///
-    /// shallow_node.set_velocity(vec![0.3, 0.7]);
-    /// assert_eq!(shallow_node.get_velocity(), vec![0.3, 0.7]);
-    /// ```
-    pub fn set_velocity(&self, velocity: Vec<Float>) {
-        // self.velocity.replace(velocity);
+    fn set_velocity(&self, velocity: Vec<Float>) {
         let mut velocity_guard = self.velocity.write().unwrap();
         *velocity_guard = velocity;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::Lattice;
+    use super::*;
+
+    #[test]
+    fn test_get_f_eq_d2q9() {
+        let node = Node::test_default(2);
+
+        assert_eq!(node.get_f_eq(), vec![0.0; 9]);
+        assert_eq!(node.get_f_eq(), [0.0; 9]);
+        assert_eq!(node.get_f_eq(), &[0.0; 9]);
+        assert_eq!(&node.get_f_eq(), &[0.0; 9]);
+    }
+
+    #[test]
+    fn test_get_f_star_d2q9() {
+        let node = Node::test_default(2);
+
+        assert_eq!(node.get_f_star(), vec![0.0; 9]);
+        assert_eq!(node.get_f_star(), [0.0; 9]);
+        assert_eq!(node.get_f_star(), &[0.0; 9]);
+        assert_eq!(&node.get_f_star(), &[0.0; 9]);
+    }
+
+    #[test]
+    fn test_set_density() {
+        let node = Node::test_default(2);
+
+        assert_eq!(node.get_density(), 1.0);
+
+        node.set_density(1.1);
+
+        assert_eq!(node.get_density(), 1.1);
+        assert_ne!(node.get_density(), 1.0);
+
+        node.set_density(1.2);
+
+        assert_eq!(node.get_density(), 1.2);
+        assert_ne!(node.get_density(), 1.1);
+    }
+
+    #[test]
+    fn test_set_velocity_d2q9() {
+        let node = Node::test_default(2);
+
+        assert_eq!(node.get_velocity(), vec![0.0, 0.0]);
+
+        node.set_velocity(vec![0.1, 0.0]);
+        let mut velocity = node.get_velocity();
+        velocity[1] = 0.2;
+
+        node.set_velocity(velocity);
+
+        assert_eq!(node.get_velocity(), vec![0.1, 0.2]);
+
+        let mut velocity = Vec::with_capacity(2);
+        let mut u_x = 0.3;
+        for _ in 0..2 {
+            velocity.push(u_x);
+            u_x += 0.1;
+        }
+
+        node.set_velocity(velocity);
+
+        let actual = node.get_velocity();
+        let target = [0.3, 0.4];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+
+        let mut velocity = vec![0.0; 2];
+        let mut u_x = 0.5;
+        for elem in velocity.iter_mut() {
+            *elem = u_x;
+            u_x += 0.1;
+        }
+
+        node.set_velocity(velocity);
+
+        let actual = node.get_velocity();
+        let target = [0.5, 0.6];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_set_velocity_d3q19() {
+        let node = Node::test_default(3);
+
+        assert_eq!(node.get_velocity(), vec![0.0, 0.0, 0.0]);
+
+        node.set_velocity(vec![0.1, 0.2, 0.0]);
+
+        assert_eq!(node.get_velocity(), vec![0.1, 0.2, 0.0]);
+
+        let mut velocity = node.get_velocity();
+        velocity[2] = 0.3;
+
+        node.set_velocity(velocity);
+
+        assert_eq!(node.get_velocity(), vec![0.1, 0.2, 0.3]);
+    }
+
+    #[test]
+    fn test_set_f_d2q9() {
+        let node = Node::test_default(2);
+
+        assert_eq!(node.get_f(), vec![0.0; 9]);
+
+        node.set_f(vec![0.1, 0.0, 0.3, 0.0, 0.5, 0.0, 0.7, 0.0, 0.9]);
+
+        let mut f = node.get_f();
+        f[1] = 0.2;
+        f[3] = 0.4;
+        f[5] = 0.6;
+        f[7] = 0.8;
+
+        node.set_f(f);
+
+        assert_eq!(
+            node.get_f(),
+            vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+        );
+
+        let mut f = Vec::with_capacity(9);
+        let mut f_i = 0.9;
+        for _ in 0..9 {
+            f.push(f_i);
+            f_i -= 0.1;
+        }
+
+        node.set_f(f);
+
+        let actual = node.get_f();
+        let target = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+
+        let mut f = vec![0.0; 9];
+        let mut f_i = 0.05;
+        for elem in f.iter_mut() {
+            *elem = f_i;
+            f_i += 0.05;
+        }
+
+        node.set_f(f);
+
+        let actual = node.get_f();
+        let target = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_set_f_d3q19() {
+        let node = Node::test_default(3);
+
+        assert_eq!(node.get_f(), vec![0.0; 19]);
+
+        node.set_f(vec![
+            0.4, 0.3, 0.2, 0.0, 0.2, 0.3, 0.4, 0.0, 0.6, 0.7, 0.6, 0.0, 0.4, 0.3, 0.2, 0.0, 0.2,
+            0.3, 0.4,
+        ]);
+
+        let mut f = node.get_f();
+        f[3] = 0.1;
+        f[7] = 0.5;
+        f[11] = 0.5;
+        f[15] = 0.1;
+
+        node.set_f(f);
+
+        assert_eq!(
+            node.get_f(),
+            vec![
+                0.4, 0.3, 0.2, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1,
+                0.2, 0.3, 0.4,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_set_f_eq_d2q9() {
+        let node = Node::test_default(2);
+
+        assert_eq!(node.get_f_eq(), vec![0.0; 9]);
+
+        node.set_f_eq(vec![0.1, 0.0, 0.3, 0.0, 0.5, 0.0, 0.7, 0.0, 0.9]);
+
+        let mut f_eq = node.get_f_eq();
+        f_eq[1] = 0.2;
+        f_eq[3] = 0.4;
+        f_eq[5] = 0.6;
+        f_eq[7] = 0.8;
+
+        node.set_f_eq(f_eq);
+
+        assert_eq!(
+            node.get_f_eq(),
+            vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+        );
+
+        let mut f_eq = Vec::with_capacity(9);
+        let mut f_eq_i = 0.9;
+        for _ in 0..9 {
+            f_eq.push(f_eq_i);
+            f_eq_i -= 0.1;
+        }
+
+        node.set_f_eq(f_eq);
+
+        let actual = node.get_f_eq();
+        let target = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+
+        let mut f_eq = vec![0.0; 9];
+        let mut f_eq_i = 0.05;
+        for elem in f_eq.iter_mut() {
+            *elem = f_eq_i;
+            f_eq_i += 0.05;
+        }
+
+        node.set_f_eq(f_eq);
+
+        let actual = node.get_f_eq();
+        let target = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_set_f_eq_d3q19() {
+        let node = Node::test_default(3);
+
+        assert_eq!(node.get_f_eq(), vec![0.0; 19]);
+
+        node.set_f_eq(vec![
+            0.4, 0.3, 0.2, 0.0, 0.2, 0.3, 0.4, 0.0, 0.6, 0.7, 0.6, 0.0, 0.4, 0.3, 0.2, 0.0, 0.2,
+            0.3, 0.4,
+        ]);
+
+        let mut f_eq = node.get_f_eq();
+        f_eq[3] = 0.1;
+        f_eq[7] = 0.5;
+        f_eq[11] = 0.5;
+        f_eq[15] = 0.1;
+
+        node.set_f_eq(f_eq);
+
+        assert_eq!(
+            node.get_f_eq(),
+            vec![
+                0.4, 0.3, 0.2, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1,
+                0.2, 0.3, 0.4,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_set_f_star_d2q9() {
+        let node = Node::test_default(2);
+
+        assert_eq!(node.get_f_star(), vec![0.0; 9]);
+
+        node.set_f_star(vec![0.1, 0.0, 0.3, 0.0, 0.5, 0.0, 0.7, 0.0, 0.9]);
+
+        let mut f_star = node.get_f_star();
+        f_star[1] = 0.2;
+        f_star[3] = 0.4;
+        f_star[5] = 0.6;
+        f_star[7] = 0.8;
+
+        node.set_f_star(f_star);
+
+        assert_eq!(
+            node.get_f_star(),
+            vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+        );
+
+        let mut f_star = Vec::with_capacity(9);
+        let mut f_star_i = 0.9;
+        for _ in 0..9 {
+            f_star.push(f_star_i);
+            f_star_i -= 0.1;
+        }
+
+        node.set_f_star(f_star);
+
+        let actual = node.get_f_star();
+        let target = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+
+        let mut f_star = vec![0.0; 9];
+        let mut f_star_i = 0.05;
+        for elem in f_star.iter_mut() {
+            *elem = f_star_i;
+            f_star_i += 0.05;
+        }
+
+        node.set_f_star(f_star);
+
+        let actual = node.get_f_star();
+        let target = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_set_f_star_d3q19() {
+        let node = Node::test_default(3);
+
+        assert_eq!(node.get_f_star(), vec![0.0; 19]);
+
+        node.set_f_star(vec![
+            0.4, 0.3, 0.2, 0.0, 0.2, 0.3, 0.4, 0.0, 0.6, 0.7, 0.6, 0.0, 0.4, 0.3, 0.2, 0.0, 0.2,
+            0.3, 0.4,
+        ]);
+
+        let mut f_star = node.get_f_star();
+        f_star[3] = 0.1;
+        f_star[7] = 0.5;
+        f_star[11] = 0.5;
+        f_star[15] = 0.1;
+
+        node.set_f_star(f_star);
+
+        assert_eq!(
+            node.get_f_star(),
+            vec![
+                0.4, 0.3, 0.2, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1,
+                0.2, 0.3, 0.4,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_get_neighbor_node_d2q9_inner_node() {
+        let momentum_lattice = Lattice::_test_default(2);
+        let node = momentum_lattice._get_node_by_index(&vec![3, 7]);
+
+        assert_eq!(node.get_neighbor_node(0).get_index(), &vec![3, 7]);
+        assert_eq!(node.get_neighbor_node(1).get_index(), &vec![4, 7]);
+        assert_eq!(node.get_neighbor_node(2).get_index(), &vec![3, 8]);
+        assert_eq!(node.get_neighbor_node(3).get_index(), &vec![2, 7]);
+        assert_eq!(node.get_neighbor_node(4).get_index(), &vec![3, 6]);
+        assert_eq!(node.get_neighbor_node(5).get_index(), &vec![4, 8]);
+        assert_eq!(node.get_neighbor_node(6).get_index(), &vec![2, 8]);
+        assert_eq!(node.get_neighbor_node(7).get_index(), &vec![2, 6]);
+        assert_eq!(node.get_neighbor_node(8).get_index(), &vec![4, 6]);
+    }
+
+    #[test]
+    fn test_get_neighbor_node_d2q9_edge_node() {
+        let momentum_lattice = Lattice::_test_default(2);
+        let node = momentum_lattice._get_node_by_index(&vec![9, 9]);
+
+        assert_eq!(node.get_neighbor_node(0).get_index(), &vec![9, 9]);
+        assert_eq!(node.get_neighbor_node(1).get_index(), &vec![0, 9]);
+        assert_eq!(node.get_neighbor_node(2).get_index(), &vec![9, 0]);
+        assert_eq!(node.get_neighbor_node(3).get_index(), &vec![8, 9]);
+        assert_eq!(node.get_neighbor_node(4).get_index(), &vec![9, 8]);
+        assert_eq!(node.get_neighbor_node(5).get_index(), &vec![0, 0]);
+        assert_eq!(node.get_neighbor_node(6).get_index(), &vec![8, 0]);
+        assert_eq!(node.get_neighbor_node(7).get_index(), &vec![8, 8]);
+        assert_eq!(node.get_neighbor_node(8).get_index(), &vec![0, 8]);
+
+        assert_eq!(
+            node.get_neighbor_node(3).get_neighbor_node(2).get_index(),
+            &vec![8, 0]
+        );
+    }
+
+    #[test]
+    fn test_get_neighbor_node_d3q19_inner_node() {
+        let momentum_lattice = Lattice::_test_default(3);
+        let node = momentum_lattice._get_node_by_index(&vec![3, 5, 7]);
+
+        assert_eq!(node.get_neighbor_node(0).get_index(), &vec![3, 5, 7]);
+        assert_eq!(node.get_neighbor_node(1).get_index(), &vec![4, 5, 7]);
+        assert_eq!(node.get_neighbor_node(7).get_index(), &vec![4, 6, 7]);
+        assert_eq!(node.get_neighbor_node(9).get_index(), &vec![4, 5, 8]);
+    }
+
+    #[test]
+    fn test_get_neighbor_node_d3q19_edge_node() {
+        let momentum_lattice = Lattice::_test_default(3);
+        let node = momentum_lattice._get_node_by_index(&vec![9, 9, 9]);
+
+        assert_eq!(node.get_neighbor_node(0).get_index(), &vec![9, 9, 9]);
+        assert_eq!(node.get_neighbor_node(1).get_index(), &vec![0, 9, 9]);
+        assert_eq!(node.get_neighbor_node(7).get_index(), &vec![0, 0, 9]);
+        assert_eq!(node.get_neighbor_node(9).get_index(), &vec![0, 9, 0]);
+    }
+
+    #[test]
+    fn test_get_neighbor_nodes_d2q9() {
+        let momentum_lattice = Lattice::_test_default(2);
+        let node = momentum_lattice._get_node_by_index(&vec![3, 7]);
+
+        let neighbor_nodes = node.get_neighbor_nodes();
+
+        assert_eq!(neighbor_nodes[&0].get_index(), &vec![3, 7]);
+        assert_eq!(neighbor_nodes[&1].get_index(), &vec![4, 7]);
+        assert_eq!(neighbor_nodes[&2].get_index(), &vec![3, 8]);
+        assert_eq!(neighbor_nodes[&3].get_index(), &vec![2, 7]);
+        assert_eq!(neighbor_nodes[&4].get_index(), &vec![3, 6]);
+        assert_eq!(neighbor_nodes[&5].get_index(), &vec![4, 8]);
+        assert_eq!(neighbor_nodes[&6].get_index(), &vec![2, 8]);
+        assert_eq!(neighbor_nodes[&7].get_index(), &vec![2, 6]);
+        assert_eq!(neighbor_nodes[&8].get_index(), &vec![4, 6]);
+    }
+
+    #[test]
+    fn test_get_neighbor_nodes_d3q19() {
+        let momentum_lattice = Lattice::_test_default(3);
+        let node = momentum_lattice._get_node_by_index(&vec![3, 5, 7]);
+
+        let neighbor_nodes = node.get_neighbor_nodes();
+
+        assert_eq!(neighbor_nodes[&0].get_index(), &vec![3, 5, 7]);
+        assert_eq!(neighbor_nodes[&1].get_index(), &vec![4, 5, 7]);
+        assert_eq!(neighbor_nodes[&7].get_index(), &vec![4, 6, 7]);
+        assert_eq!(neighbor_nodes[&9].get_index(), &vec![4, 5, 8]);
+    }
+
+    #[test]
+    fn test_get_shallow_node() {
+        let node = Node::test_default(2);
+
+        let shallow_node = node.get_shallow_node();
+
+        assert_eq!(shallow_node.get_density(), 1.0);
+        assert_eq!(shallow_node.get_velocity(), vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn test_compute_density_d2q9() {
+        let node = Node::test_default(2);
+
+        node.compute_density();
+
+        assert!((node.get_density() - 0.0).abs() < 1e-12);
+
+        node.set_f(vec![0.1; 9]);
+
+        node.compute_density();
+
+        assert!((node.get_density() - 0.9).abs() < 1e-12);
+
+        node.set_f(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+
+        node.compute_density();
+
+        assert!((node.get_density() - 4.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_compute_density_d3q19() {
+        let node = Node::test_default(3);
+
+        node.compute_density();
+
+        assert!((node.get_density() - 0.0).abs() < 1e-12);
+
+        node.set_f(vec![0.1; 19]);
+
+        node.compute_density();
+
+        assert!((node.get_density() - 1.9).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_compute_velocity_d2q9_implicit_computation() {
+        let node = Node::test_default(2);
+
+        node.compute_velocity(false);
+
+        let actual = node.get_velocity();
+        let target = [0.0; 2];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+
+        node.set_f(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+
+        node.compute_velocity(false);
+
+        let actual = node.get_velocity();
+        let target = [-0.2, -0.6];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_compute_velocity_d2q9_explicit_computation() {
+        let node = Node::test_default(2);
+        node.set_f(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+        node.set_density(0.5);
+
+        node.compute_velocity(true);
+
+        let actual = node.get_velocity();
+        let target = [-0.4, -1.2];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_compute_velocity_d3q19_implicit_computation() {
+        let node = Node::test_default(3);
+
+        node.compute_velocity(false);
+
+        let actual = node.get_velocity();
+        let target = [0.0; 3];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+
+        node.set_f(vec![
+            0.4, 0.3, 0.2, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.2,
+            0.3, 0.4,
+        ]);
+
+        node.compute_velocity(false);
+
+        let actual = node.get_velocity();
+        let target = [0.1, -0.3, 0.3];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_compute_velocity_d3q19_explicit_computation() {
+        let node = Node::test_default(3);
+        node.set_f(vec![
+            0.4, 0.3, 0.2, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.2,
+            0.3, 0.4,
+        ]);
+        node.set_density(0.5);
+
+        node.compute_velocity(true);
+
+        let actual = node.get_velocity();
+        let target = [0.2, -0.6, 0.6];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_compute_bgk_collision_d2q9() {
+        let node = Node::test_default(2);
+        node.set_f(vec![0.1; 9]);
+        node.set_f_eq(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+        let tau = 0.5;
+
+        node.compute_bgk_collision(tau);
+
+        let actual = node.get_f_star();
+        let target = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_compute_equilibrium_d2q9() {
+        let node = Node::test_default(2);
+        node.set_f(vec![0.1; 9]);
+        node.compute_density(); // density = 0.9
+
+        node.compute_equilibrium();
+
+        let actual = node.get_f_eq();
+        let target = [0.4, 0.1, 0.1, 0.1, 0.1, 0.025, 0.025, 0.025, 0.025];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_compute_streaming_d2q9_case_1() {
+        let momentum_lattice = Lattice::_test_default(2);
+        let node = momentum_lattice._get_node_by_index(&vec![3, 7]);
+        node.get_neighbor_node(0).set_f_star(vec![0.1; 9]);
+        node.get_neighbor_node(1).set_f_star(vec![0.2; 9]);
+        node.get_neighbor_node(2).set_f_star(vec![0.3; 9]);
+        node.get_neighbor_node(3).set_f_star(vec![0.4; 9]);
+        node.get_neighbor_node(4).set_f_star(vec![0.5; 9]);
+        node.get_neighbor_node(5).set_f_star(vec![0.6; 9]);
+        node.get_neighbor_node(6).set_f_star(vec![0.7; 9]);
+        node.get_neighbor_node(7).set_f_star(vec![0.8; 9]);
+        node.get_neighbor_node(8).set_f_star(vec![0.9; 9]);
+
+        node.compute_streaming();
+
+        assert_eq!(
+            node.get_f(),
+            vec![0.1, 0.4, 0.5, 0.2, 0.3, 0.8, 0.9, 0.6, 0.7]
+        );
+    }
+
+    #[test]
+    fn test_compute_streaming_d2q9_case_2() {
+        let momentum_lattice = Lattice::_test_default(2);
+        let node = momentum_lattice._get_node_by_index(&vec![3, 7]);
+        node.get_neighbor_node(0)
+            .set_f_star(vec![1.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+        node.get_neighbor_node(1)
+            .set_f_star(vec![0.1, 0.2, 0.3, 1.0, 0.5, 0.6, 0.7, 0.8, 0.9]);
+        node.get_neighbor_node(2)
+            .set_f_star(vec![0.1, 0.2, 0.3, 0.4, 1.0, 0.6, 0.7, 0.8, 0.9]);
+        node.get_neighbor_node(3)
+            .set_f_star(vec![0.1, 1.0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+        node.get_neighbor_node(4)
+            .set_f_star(vec![0.1, 0.2, 1.0, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+        node.get_neighbor_node(5)
+            .set_f_star(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0, 0.9]);
+        node.get_neighbor_node(6)
+            .set_f_star(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0]);
+        node.get_neighbor_node(7)
+            .set_f_star(vec![0.1, 0.2, 0.3, 0.4, 0.5, 1.0, 0.7, 0.8, 0.9]);
+        node.get_neighbor_node(8)
+            .set_f_star(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1.0, 0.8, 0.9]);
+
+        node.compute_streaming();
+
+        assert_eq!(node.get_f(), vec![1.0; 9]);
+    }
+
+    #[test]
+    fn test_compute_node_residuals() {
+        let node = Node::test_default(2);
+        node.set_density(0.95);
+        node.set_velocity(vec![0.15, -0.25]);
+
+        let (node_residual_density, node_residual_velocity) = node.compute_node_residuals();
+
+        assert!((node_residual_density - (-0.05)).abs() < 1e-12);
+        let actual = node_residual_velocity;
+        let target = [0.15, -0.25];
+        for (a, b) in actual.iter().zip(target.iter()) {
+            assert!((a - b).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_update_shallow_node() {
+        let node = Node::test_default(2);
+        let shallow_node = node.get_shallow_node();
+        node.set_density(0.9);
+        node.set_velocity(vec![0.1, -0.1]);
+
+        node.update_shallow_node();
+
+        assert_eq!(shallow_node.get_density(), 0.9);
+        assert_eq!(shallow_node.get_velocity(), vec![0.1, -0.1]);
+    }
+
+    #[test]
+    fn test_get_density_shallow_node() {
+        let shallow_node = ShallowNode::new(1.0, vec![0.0, 0.0]);
+
+        assert_eq!(shallow_node.get_density(), 1.0);
+    }
+
+    #[test]
+    fn test_get_velocity_shallow_node() {
+        let shallow_node = ShallowNode::new(1.0, vec![0.0, 0.0]);
+
+        assert_eq!(shallow_node.get_velocity(), vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn test_set_density_shallow_node() {
+        let shallow_node = ShallowNode::new(1.0, vec![0.0, 0.0]);
+
+        shallow_node.set_density(0.9);
+
+        assert_eq!(shallow_node.get_density(), 0.9);
+
+        shallow_node.set_density(1.1);
+
+        assert_eq!(shallow_node.get_density(), 1.1);
+    }
+
+    #[test]
+    fn test_set_velocity_shallow_node() {
+        let shallow_node = ShallowNode::new(1.0, vec![0.0, 0.0]);
+
+        shallow_node.set_velocity(vec![0.1, -0.1]);
+
+        assert_eq!(shallow_node.get_velocity(), vec![0.1, -0.1]);
+
+        shallow_node.set_velocity(vec![0.3, 0.7]);
+
+        assert_eq!(shallow_node.get_velocity(), vec![0.3, 0.7]);
     }
 }

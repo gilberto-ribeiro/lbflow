@@ -1,13 +1,9 @@
 use super::bc::BoundaryCondition::{self, *};
 use super::post::PostFunction;
-use super::{ConversionFactor, Node, Parameters, Residuals};
-use crate::prelude::*;
+use super::{Node, Parameters, Residuals};
+use crate::prelude_crate::*;
 use crate::{FACES_2D, FACES_3D};
 use rayon::prelude::*;
-
-pub const MIN_ITER: usize = 10;
-pub const TOLERANCE_DENSITY: Float = 1e-7;
-pub const TOLERANCE_VELOCITY: Float = 1e-7;
 
 // ----------------------------------------------------------------------- STRUCT: Lattice
 
@@ -17,7 +13,6 @@ pub struct Lattice {
     n: Vec<usize>,
     collision_operator: Arc<CollisionOperator>,
     velocity_set_parameters: Arc<velocity_set::Parameters>,
-    conversion_factor: Arc<ConversionFactor>,
     fluid_nodes: Vec<Arc<Node>>,
     boundary_nodes: HashMap<BoundaryFace, Vec<Arc<Node>>>,
     bounce_back_nodes: Vec<Arc<Node>>,
@@ -29,7 +24,7 @@ pub struct Lattice {
 }
 
 impl Lattice {
-    pub fn new(config: Config, params: Parameters) -> Self {
+    pub(crate) fn new(config: Config, params: Parameters) -> Self {
         let initial_density = &params.initial_density;
         let initial_velocity = &params.initial_velocity;
 
@@ -70,15 +65,6 @@ impl Lattice {
             ),
             _ => panic!("Unsupported dimension: {d}"),
         };
-
-        let conversion_factor = Arc::new(ConversionFactor::new(
-            Arc::clone(&collision_operator),
-            params.velocity_set,
-            params.delta_x,
-            params.delta_t,
-            params.physical_density,
-            params.reference_pressure,
-        ));
 
         println!("Creating lattice with dimensions: {n:?}\n");
         let nodes = (0..num_nodes)
@@ -152,11 +138,6 @@ impl Lattice {
                             (*idx as i32 + c_x).rem_euclid(n_x as i32) as usize
                         })
                         .collect::<Vec<usize>>();
-                    // let neighbor_node = nodes
-                    //     .iter()
-                    //     .find(|node| node.get_index() == &neighbor_index)
-                    //     .cloned()
-                    //     .unwrap();
                     let x = neighbor_index[0];
                     let y = neighbor_index[1];
                     let z = match d {
@@ -213,7 +194,6 @@ impl Lattice {
             n: n.to_vec(),
             collision_operator: Arc::clone(&collision_operator),
             velocity_set_parameters: Arc::clone(&velocity_set_params),
-            conversion_factor,
             fluid_nodes,
             boundary_nodes,
             boundary_conditions: HashMap::from_iter(params.boundary_conditions),
@@ -225,8 +205,8 @@ impl Lattice {
         }
     }
 
-    pub fn test_default(dim: usize) -> Self {
-        let parameters = Parameters::test_default(dim);
+    pub(super) fn _test_default(dim: usize) -> Self {
+        let parameters = Parameters::_test_default(dim);
         let config = Config::default();
         Lattice::new(config, parameters)
     }
@@ -241,97 +221,23 @@ impl Default for Lattice {
 }
 
 impl Lattice {
-    /// # Examples
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::{Lattice, Node};
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(2);
-    ///
-    /// assert_eq!(momentum_lattice.get_node_by_index(&vec![3, 7]).get_index(), &vec![3, 7]);
-    pub fn get_node_by_index(&self, index: &Vec<usize>) -> &Arc<Node> {
+    pub(super) fn _get_node_by_index(&self, index: &Vec<usize>) -> &Arc<Node> {
         self.nodes
             .iter()
             .find(|node| node.get_index() == index)
             .unwrap()
     }
 
-    /// # Examples
-    /// ```
-    /// # use lbflow::momentum::Lattice;
-    /// # use lbflow::BoundaryFace;
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(2);
-    ///
-    /// let west_nodes = momentum_lattice.get_boundary_nodes_by_face(&BoundaryFace::West)
-    ///     .iter()
-    ///     .map(|node| node.get_index())
-    ///     .collect::<Vec<&Vec<usize>>>();
-    /// let east_nodes = momentum_lattice.get_boundary_nodes_by_face(&BoundaryFace::East)
-    ///     .iter()
-    ///     .map(|node| node.get_index())
-    ///     .collect::<Vec<&Vec<usize>>>();
-    /// let south_nodes = momentum_lattice.get_boundary_nodes_by_face(&BoundaryFace::South)
-    ///     .iter()
-    ///     .map(|node| node.get_index())
-    ///     .collect::<Vec<&Vec<usize>>>();
-    /// let north_nodes = momentum_lattice.get_boundary_nodes_by_face(&BoundaryFace::North)
-    ///     .iter()
-    ///     .map(|node| node.get_index())
-    ///     .collect::<Vec<&Vec<usize>>>();
-    ///
-    /// assert!(west_nodes.contains(&&vec![0, 0]));
-    /// assert!(west_nodes.contains(&&vec![0, 5]));
-    /// assert!(west_nodes.contains(&&vec![0, 9]));
-    ///
-    /// assert!(east_nodes.contains(&&vec![9, 0]));
-    /// assert!(east_nodes.contains(&&vec![9, 5]));
-    /// assert!(east_nodes.contains(&&vec![9, 9]));
-    ///
-    /// assert!(south_nodes.contains(&&vec![0, 0]));
-    /// assert!(south_nodes.contains(&&vec![5, 0]));
-    /// assert!(south_nodes.contains(&&vec![9, 0]));
-    ///
-    /// assert!(north_nodes.contains(&&vec![0, 9]));
-    /// assert!(north_nodes.contains(&&vec![5, 9]));
-    /// assert!(north_nodes.contains(&&vec![9, 9]));
-    ///
-    /// let node = momentum_lattice.get_node_by_index(&vec![3, 7]);
-    ///
-    /// assert!(!west_nodes.contains(&node.get_index()));
-    /// assert!(!east_nodes.contains(&node.get_index()));
-    /// assert!(!south_nodes.contains(&node.get_index()));
-    /// assert!(!north_nodes.contains(&node.get_index()));
-    ///
-    /// let neighbor_node = node.get_neighbor_node(2).get_neighbor_node(2);
-    /// assert_eq!(neighbor_node.get_index(), &vec![3, 9]);
-    /// assert!(north_nodes.contains(&neighbor_node.get_index()));
-    /// ```
-    pub fn get_boundary_nodes_by_face(&self, boundary_face: &BoundaryFace) -> &Vec<Arc<Node>> {
+    fn _get_boundary_nodes_by_face(&self, boundary_face: &BoundaryFace) -> &Vec<Arc<Node>> {
         self.boundary_nodes
             .get(boundary_face)
             .expect("Boundary face not found")
     }
 
-    /// # Examples
-    /// ```
-    /// # use lbflow::momentum::Lattice;
-    /// # use lbflow::BoundaryFace;
-    /// # use lbflow::momentum::bc::BoundaryCondition;
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(2);
-    ///
-    /// assert_eq!(momentum_lattice.get_boundary_condition(&BoundaryFace::West), &BoundaryCondition::NoSlip);
-    /// assert_eq!(momentum_lattice.get_boundary_condition(&BoundaryFace::East), &BoundaryCondition::NoSlip);
-    /// assert_eq!(momentum_lattice.get_boundary_condition(&BoundaryFace::South), &BoundaryCondition::NoSlip);
-    /// assert_eq!(momentum_lattice.get_boundary_condition(&BoundaryFace::North),
-    ///     &BoundaryCondition::BounceBack {
-    ///         density: 1.0,
-    ///         velocity: vec![0.1, 0.0],
-    ///     }
-    /// );
-    /// ```
-    pub fn get_boundary_condition(&self, boundary_face: &BoundaryFace) -> &BoundaryCondition {
+    pub(crate) fn get_boundary_condition(
+        &self,
+        boundary_face: &BoundaryFace,
+    ) -> &BoundaryCondition {
         self.boundary_conditions
             .get(boundary_face)
             .expect("Boundary faces not found")
@@ -341,25 +247,7 @@ impl Lattice {
         &self.nodes
     }
 
-    /// Examples
-    /// 2D
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use lbflow::momentum::{Lattice, Node};
-    /// # use lbflow::momentum::Parameters;
-    /// let momentum_lattice = Lattice::test_default(2);
-    ///
-    /// assert_eq!(momentum_lattice.get_node(0).get_index(), &vec![0, 0]);
-    /// assert_eq!(momentum_lattice.get_node(1).get_index(), &vec![1, 0]);
-    /// assert_eq!(momentum_lattice.get_node(73).get_index(), &vec![3, 7]);
-    ///
-    /// let node_0 = momentum_lattice.get_node(73);
-    /// let node_1 = momentum_lattice.get_node(73);
-    ///
-    /// assert_eq!(node_0.get_index(), &vec![3, 7]);
-    /// assert_eq!(node_1.get_index(), &vec![3, 7]);
-    /// ```
-    pub fn get_node(&self, i: usize) -> &Arc<Node> {
+    fn _get_node(&self, i: usize) -> &Arc<Node> {
         &self.nodes[i]
     }
 
@@ -367,39 +255,36 @@ impl Lattice {
         &self.fluid_nodes
     }
 
-    pub fn get_bounce_back_nodes(&self) -> &Vec<Arc<Node>> {
+    fn get_bounce_back_nodes(&self) -> &Vec<Arc<Node>> {
         &self.bounce_back_nodes
     }
 
-    pub fn get_boundary_nodes(&self) -> &HashMap<BoundaryFace, Vec<Arc<Node>>> {
+    fn get_boundary_nodes(&self) -> &HashMap<BoundaryFace, Vec<Arc<Node>>> {
         &self.boundary_nodes
     }
 
-    pub fn get_time_step(&self) -> usize {
-        // *self.time_step.borrow()
+    pub(crate) fn get_time_step(&self) -> usize {
         *self.time_step.read().unwrap()
     }
 
-    pub fn get_residuals(&self) -> Residuals {
-        // self.residuals.borrow().clone()
+    pub(crate) fn get_residuals(&self) -> Residuals {
         self.residuals.read().unwrap().clone()
     }
 
-    pub fn set_residuals(&self, residuals: Residuals) {
-        // self.residuals.replace(residuals);
+    fn set_residuals(&self, residuals: Residuals) {
         let mut residuals_guard = self.residuals.write().unwrap();
         *residuals_guard = residuals;
     }
 
-    pub fn get_nx(&self) -> usize {
+    pub(crate) fn get_nx(&self) -> usize {
         self.n[0]
     }
 
-    pub fn get_ny(&self) -> usize {
+    pub(crate) fn get_ny(&self) -> usize {
         self.n[1]
     }
 
-    pub fn get_nz(&self) -> usize {
+    pub(crate) fn get_nz(&self) -> usize {
         match self.get_d() {
             2 => 1,
             3 => self.n[2],
@@ -407,39 +292,33 @@ impl Lattice {
         }
     }
 
-    pub fn get_number_of_nodes(&self) -> usize {
+    pub(crate) fn get_number_of_nodes(&self) -> usize {
         self.n.par_iter().product()
     }
 
-    pub fn get_n(&self) -> &Vec<usize> {
+    pub(crate) fn get_n(&self) -> &Vec<usize> {
         &self.n
     }
 
-    pub fn get_config(&self) -> &Config {
+    pub(crate) fn get_config(&self) -> &Config {
         &self.config
     }
 
-    pub fn get_post_functions(&self) -> &Option<Vec<PostFunction>> {
+    fn get_post_functions(&self) -> &Option<Vec<PostFunction>> {
         &self.post_functions
     }
-}
 
-impl Lattice {
-    pub fn get_d(&self) -> &usize {
+    pub(super) fn get_d(&self) -> &usize {
         &self.velocity_set_parameters.d
     }
 
-    pub fn get_conversion_factor(&self) -> &Arc<ConversionFactor> {
-        &self.conversion_factor
-    }
-
-    pub fn get_collision_operator(&self) -> &Arc<CollisionOperator> {
+    fn get_collision_operator(&self) -> &Arc<CollisionOperator> {
         &self.collision_operator
     }
 }
 
 impl Lattice {
-    pub fn initialize_nodes(&self) {
+    pub(crate) fn initialize_nodes(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
             node.compute_phi();
             node.compute_equilibrium();
@@ -447,20 +326,20 @@ impl Lattice {
         });
     }
 
-    pub fn update_density_and_velocity_step(&self) {
+    fn update_density_and_velocity_step(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
             node.compute_density();
             node.compute_velocity(false);
         });
     }
 
-    pub fn equilibrium_step(&self) {
+    fn equilibrium_step(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
             node.compute_equilibrium();
         });
     }
 
-    pub fn collision_step(&self) {
+    fn collision_step(&self) {
         match self.get_collision_operator().as_ref() {
             BGK(tau) => self.get_fluid_nodes().par_iter().for_each(|node| {
                 node.compute_bgk_collision(*tau);
@@ -474,19 +353,19 @@ impl Lattice {
         }
     }
 
-    pub fn streaming_step(&self) {
+    fn streaming_step(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
             node.compute_streaming();
         });
     }
 
-    pub fn inner_bounce_back_step(&self) {
+    fn inner_bounce_back_step(&self) {
         self.get_bounce_back_nodes().par_iter().for_each(|node| {
             node.compute_inner_bounce_back();
         });
     }
 
-    pub fn boundary_conditions_step(&self) {
+    fn boundary_conditions_step(&self) {
         self.get_boundary_nodes()
             .iter()
             .for_each(|(boundary_face, nodes)| {
@@ -512,7 +391,7 @@ impl Lattice {
             });
     }
 
-    pub fn compute_lattice_residuals(&self) {
+    pub(crate) fn compute_lattice_residuals(&self) {
         let d = self.get_d();
         let node_residuals = self
             .get_fluid_nodes()
@@ -539,19 +418,18 @@ impl Lattice {
         });
     }
 
-    pub fn update_shallow_nodes(&self) {
+    pub(crate) fn update_shallow_nodes(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
             node.update_shallow_node();
         });
     }
 
-    pub fn next_time_step(&self) {
-        // *self.time_step.borrow_mut() += 1;
+    pub(crate) fn next_time_step(&self) {
         let mut time_step_guard = self.time_step.write().unwrap();
         *time_step_guard += 1;
     }
 
-    pub fn stop_condition(&self) -> bool {
+    pub(super) fn stop_condition(&self) -> bool {
         let residuals = self.get_residuals();
         let converged_density = residuals.density <= TOLERANCE_DENSITY;
         let converged_velocity = residuals
@@ -564,7 +442,7 @@ impl Lattice {
         (min_iterations && converged_quantities) || max_iterations
     }
 
-    pub fn compute_post_processing(&self) {
+    pub(crate) fn compute_post_processing(&self) {
         if let Some(post_functions) = self.get_post_functions() {
             post_functions.iter().for_each(|post_function| {
             self.write_post_processing(post_function).unwrap_or_else(|e| {
@@ -575,7 +453,7 @@ impl Lattice {
         }
     }
 
-    pub fn main_steps(&self) {
+    pub(crate) fn main_steps(&self) {
         if !self.get_config().freeze_momentum {
             self.update_density_and_velocity_step();
             self.equilibrium_step();
@@ -584,5 +462,196 @@ impl Lattice {
             self.inner_bounce_back_step();
             self.boundary_conditions_step();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_node_d2q9_several_nodes() {
+        let momentum_lattice = Lattice::_test_default(2);
+
+        assert_eq!(momentum_lattice._get_node(0).get_index(), &vec![0, 0]);
+        assert_eq!(momentum_lattice._get_node(1).get_index(), &vec![1, 0]);
+        assert_eq!(momentum_lattice._get_node(73).get_index(), &vec![3, 7]);
+    }
+
+    #[test]
+    fn test_get_node_d2q9_two_same_nodes() {
+        let momentum_lattice = Lattice::_test_default(2);
+
+        let node_0 = momentum_lattice._get_node(73);
+        let node_1 = momentum_lattice._get_node(73);
+
+        assert_eq!(node_0.get_index(), &vec![3, 7]);
+        assert_eq!(node_1.get_index(), &vec![3, 7]);
+    }
+
+    #[test]
+    fn test_get_node_by_index_d2q9() {
+        let momentum_lattice = Lattice::_test_default(2);
+
+        assert_eq!(
+            momentum_lattice._get_node_by_index(&vec![3, 7]).get_index(),
+            &vec![3, 7]
+        );
+    }
+
+    #[test]
+    fn test_get_boundary_nodes_by_face_d2q9_west_face_contains() {
+        let momentum_lattice = Lattice::_test_default(2);
+
+        let west_nodes = momentum_lattice
+            ._get_boundary_nodes_by_face(&BoundaryFace::West)
+            .iter()
+            .map(|node| node.get_index())
+            .collect::<Vec<&Vec<usize>>>();
+
+        assert!(west_nodes.contains(&&vec![0, 0]));
+        assert!(west_nodes.contains(&&vec![0, 5]));
+        assert!(west_nodes.contains(&&vec![0, 9]));
+    }
+
+    #[test]
+    fn test_get_boundary_nodes_by_face_d2q9_west_face_does_not_contain() {
+        let momentum_lattice = Lattice::_test_default(2);
+        let node = momentum_lattice._get_node_by_index(&vec![3, 7]);
+
+        let west_nodes = momentum_lattice
+            ._get_boundary_nodes_by_face(&BoundaryFace::West)
+            .iter()
+            .map(|node| node.get_index())
+            .collect::<Vec<&Vec<usize>>>();
+
+        assert!(!west_nodes.contains(&node.get_index()));
+    }
+
+    #[test]
+    fn test_get_boundary_nodes_by_face_d2q9_east_face_contains() {
+        let momentum_lattice = Lattice::_test_default(2);
+
+        let east_nodes = momentum_lattice
+            ._get_boundary_nodes_by_face(&BoundaryFace::East)
+            .iter()
+            .map(|node| node.get_index())
+            .collect::<Vec<&Vec<usize>>>();
+
+        assert!(east_nodes.contains(&&vec![9, 0]));
+        assert!(east_nodes.contains(&&vec![9, 5]));
+        assert!(east_nodes.contains(&&vec![9, 9]));
+    }
+
+    #[test]
+    fn test_get_boundary_nodes_by_face_d2q9_east_face_does_not_contain() {
+        let momentum_lattice = Lattice::_test_default(2);
+        let node = momentum_lattice._get_node_by_index(&vec![3, 7]);
+
+        let east_nodes = momentum_lattice
+            ._get_boundary_nodes_by_face(&BoundaryFace::East)
+            .iter()
+            .map(|node| node.get_index())
+            .collect::<Vec<&Vec<usize>>>();
+
+        assert!(!east_nodes.contains(&node.get_index()));
+    }
+
+    #[test]
+    fn test_get_boundary_nodes_by_face_d2q9_south_face_contains() {
+        let momentum_lattice = Lattice::_test_default(2);
+
+        let south_nodes = momentum_lattice
+            ._get_boundary_nodes_by_face(&BoundaryFace::South)
+            .iter()
+            .map(|node| node.get_index())
+            .collect::<Vec<&Vec<usize>>>();
+
+        assert!(south_nodes.contains(&&vec![0, 0]));
+        assert!(south_nodes.contains(&&vec![5, 0]));
+        assert!(south_nodes.contains(&&vec![9, 0]));
+    }
+
+    #[test]
+    fn test_get_boundary_nodes_by_face_d2q9_south_face_does_not_contain() {
+        let momentum_lattice = Lattice::_test_default(2);
+        let node = momentum_lattice._get_node_by_index(&vec![3, 7]);
+
+        let south_nodes = momentum_lattice
+            ._get_boundary_nodes_by_face(&BoundaryFace::South)
+            .iter()
+            .map(|node| node.get_index())
+            .collect::<Vec<&Vec<usize>>>();
+
+        assert!(!south_nodes.contains(&node.get_index()));
+    }
+
+    #[test]
+    fn test_get_boundary_nodes_by_face_d2q9_north_face_contains() {
+        let momentum_lattice = Lattice::_test_default(2);
+
+        let north_nodes = momentum_lattice
+            ._get_boundary_nodes_by_face(&BoundaryFace::North)
+            .iter()
+            .map(|node| node.get_index())
+            .collect::<Vec<&Vec<usize>>>();
+
+        assert!(north_nodes.contains(&&vec![0, 9]));
+        assert!(north_nodes.contains(&&vec![5, 9]));
+        assert!(north_nodes.contains(&&vec![9, 9]));
+    }
+
+    #[test]
+    fn test_get_boundary_nodes_by_face_d2q9_north_face_does_not_contain() {
+        let momentum_lattice = Lattice::_test_default(2);
+        let node = momentum_lattice._get_node_by_index(&vec![3, 7]);
+
+        let north_nodes = momentum_lattice
+            ._get_boundary_nodes_by_face(&BoundaryFace::North)
+            .iter()
+            .map(|node| node.get_index())
+            .collect::<Vec<&Vec<usize>>>();
+
+        assert!(!north_nodes.contains(&node.get_index()));
+    }
+
+    #[test]
+    fn test_get_boundary_nodes_by_face_d2q9_north_face_neighbor_node_contains() {
+        let momentum_lattice = Lattice::_test_default(2);
+        let node = momentum_lattice._get_node_by_index(&vec![3, 7]);
+        let neighbor_node = node.get_neighbor_node(2).get_neighbor_node(2);
+
+        let north_nodes = momentum_lattice
+            ._get_boundary_nodes_by_face(&BoundaryFace::North)
+            .iter()
+            .map(|node| node.get_index())
+            .collect::<Vec<&Vec<usize>>>();
+
+        assert!(north_nodes.contains(&neighbor_node.get_index()));
+    }
+
+    #[test]
+    fn test_get_boundary_condition_d2q9() {
+        let momentum_lattice = Lattice::_test_default(2);
+
+        assert_eq!(
+            momentum_lattice.get_boundary_condition(&BoundaryFace::West),
+            &BoundaryCondition::NoSlip
+        );
+        assert_eq!(
+            momentum_lattice.get_boundary_condition(&BoundaryFace::East),
+            &BoundaryCondition::NoSlip
+        );
+        assert_eq!(
+            momentum_lattice.get_boundary_condition(&BoundaryFace::South),
+            &BoundaryCondition::NoSlip
+        );
+        assert_eq!(
+            momentum_lattice.get_boundary_condition(&BoundaryFace::North),
+            &BoundaryCondition::BounceBack {
+                density: 1.0,
+                velocity: vec![0.1, 0.0],
+            }
+        );
     }
 }

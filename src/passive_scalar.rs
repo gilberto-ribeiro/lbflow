@@ -1,14 +1,14 @@
-pub mod bc;
+mod bc;
 mod io;
 mod lattice;
 mod node;
 mod post;
 
 use crate::cli;
-use crate::prelude::*;
+use crate::prelude_crate::*;
 use bc::BoundaryCondition;
-pub use lattice::Lattice;
-pub use node::Node;
+pub(crate) use lattice::Lattice;
+pub(crate) use node::Node;
 
 pub struct Parameters {
     pub scalar_name: String,
@@ -21,41 +21,41 @@ pub struct Parameters {
 }
 
 #[derive(Debug, Clone)]
-pub struct Residuals {
-    pub scalar_value: Float,
+struct Residuals {
+    scalar_value: Float,
 }
 
 impl Residuals {
-    pub fn new(scalar_value: Float) -> Self {
+    fn new(scalar_value: Float) -> Self {
         Residuals { scalar_value }
     }
 }
 
 impl Residuals {
-    pub fn get_scalar_value(&self) -> Float {
+    fn get_scalar_value(&self) -> Float {
         self.scalar_value
     }
 
-    pub fn set_scalar_value(&mut self, scalar_value: Float) {
+    fn _set_scalar_value(&mut self, scalar_value: Float) {
         self.scalar_value = scalar_value;
     }
 }
 
 #[derive(Debug)]
-pub struct ConversionFactor {
-    pub tau_g: Float,
-    pub diffusion_coefficient_conversion_factor: Float,
-    pub diffusion_coefficient: Float,
-    pub physical_diffusion_coefficient: Float,
+pub(crate) struct _ConversionFactor {
+    pub(crate) tau_g: Float,
+    pub(crate) diffusion_coefficient_conversion_factor: Float,
+    pub(crate) diffusion_coefficient: Float,
+    pub(crate) physical_diffusion_coefficient: Float,
 }
 
-impl ConversionFactor {
-    pub fn new(tau_g: Float, delta_x: Float, delta_t: Float) -> Self {
+impl _ConversionFactor {
+    fn _new(tau_g: Float, delta_x: Float, delta_t: Float) -> Self {
         let diffusion_coefficient_conversion_factor = delta_x * delta_x / delta_t;
         let diffusion_coefficient = CS_2 * (tau_g - 0.5 * DELTA_T);
         let physical_diffusion_coefficient =
             diffusion_coefficient * diffusion_coefficient_conversion_factor;
-        ConversionFactor {
+        _ConversionFactor {
             tau_g,
             diffusion_coefficient_conversion_factor,
             diffusion_coefficient,
@@ -63,24 +63,17 @@ impl ConversionFactor {
         }
     }
 
-    pub fn from(
-        momentum_params: &momentum::Parameters,
-        passive_scalar_params: &Parameters,
-    ) -> Self {
+    fn _from(momentum_params: &momentum::Parameters, passive_scalar_params: &Parameters) -> Self {
         let tau_g = passive_scalar_params.tau_g;
         let delta_x = momentum_params.delta_x;
         let delta_t = momentum_params.delta_t;
-        ConversionFactor::new(tau_g, delta_x, delta_t)
+        _ConversionFactor::_new(tau_g, delta_x, delta_t)
     }
 }
 
 // ----------------------------------------------------------------------------- FUNCTIONS
 
-pub fn run(
-    config: Config,
-    momentum_params: momentum::Parameters,
-    passive_scalar_params: Parameters,
-) {
+fn run(config: Config, momentum_params: momentum::Parameters, passive_scalar_params: Parameters) {
     momentum::io::case_setup(&momentum_params);
 
     let m_lat = Arc::new(momentum::Lattice::new(config, momentum_params));
@@ -145,7 +138,7 @@ pub fn solve(momentum_parameters: momentum::Parameters, passive_scalar_parameter
     }
 }
 
-pub fn run_vec(
+fn run_vec(
     config: Config,
     momentum_params: momentum::Parameters,
     passive_scalar_params_vec: Vec<Parameters>,

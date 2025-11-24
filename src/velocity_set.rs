@@ -1,28 +1,28 @@
 // ------------------------------------------------------------------------------- MODULES
 
-pub mod d2q9;
-pub mod d3q15;
-pub mod d3q19;
-pub mod d3q27;
+mod d2q9;
+mod d3q15;
+mod d3q19;
+mod d3q27;
 
 // ------------------------------------------------------------------------------- IMPORTS
 
-use crate::prelude::*;
+use crate::prelude_crate::*;
 use crate::{FACES_2D, FACES_3D};
 use std::collections::HashMap;
 
-pub type VectorComputation = fn(Float, Vec<Float>) -> Vec<Float>;
+pub(crate) type VectorComputation = fn(Float, Vec<Float>) -> Vec<Float>;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VelocitySet {
-    D2Q9,
-    D3Q15,
-    D3Q19,
-    D3Q27,
+    D2Q9 = 0,
+    D3Q15 = 1,
+    D3Q19 = 2,
+    D3Q27 = 3,
 }
 
 impl VelocitySet {
-    pub fn get_velocity_set_parameters(&self) -> Parameters {
+    pub(crate) fn get_velocity_set_parameters(&self) -> Parameters {
         match self {
             D2Q9 => Parameters {
                 velocity_set: D2Q9,
@@ -144,19 +144,19 @@ impl VelocitySet {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Parameters {
-    pub velocity_set: VelocitySet,
-    pub d: usize,
-    pub q: usize,
-    pub c: Vec<Vec<i32>>,
-    pub w: Vec<Float>,
-    pub q_bar: Vec<usize>,
-    pub q_faces: HashMap<BoundaryFace, Vec<usize>>,
-    pub face_normal_directions: HashMap<BoundaryFace, usize>,
-    pub velocity_computation: Option<VectorComputation>,
-    pub mrt_matrix: Vec<Vec<Float>>,
-    pub mrt_inverse_matrix: Vec<Vec<Float>>,
-    pub mrt_equilibrium_moments_computation: Option<VectorComputation>,
+pub(crate) struct Parameters {
+    pub(crate) velocity_set: VelocitySet,
+    pub(crate) d: usize,
+    pub(crate) q: usize,
+    pub(crate) c: Vec<Vec<i32>>,
+    pub(crate) w: Vec<Float>,
+    pub(crate) q_bar: Vec<usize>,
+    pub(crate) q_faces: HashMap<BoundaryFace, Vec<usize>>,
+    pub(crate) face_normal_directions: HashMap<BoundaryFace, usize>,
+    pub(crate) velocity_computation: Option<VectorComputation>,
+    pub(crate) mrt_matrix: Vec<Vec<Float>>,
+    pub(crate) mrt_inverse_matrix: Vec<Vec<Float>>,
+    pub(crate) mrt_equilibrium_moments_computation: Option<VectorComputation>,
 }
 
 impl Default for Parameters {
@@ -165,87 +165,67 @@ impl Default for Parameters {
     }
 }
 
-/// # Examples
-/// ## 2D:
-/// ```
-/// # use lbflow::velocity_set::VelocitySet;
-/// # use lbflow::velocity_set::Parameters;
-/// let velocity_set_parameters = Parameters::test_default(2);
-/// assert_eq!(velocity_set_parameters.d, 2);
-/// assert_eq!(velocity_set_parameters.q, 9);
-/// assert_eq!(velocity_set_parameters.c.len(), 9);
-/// assert_eq!(velocity_set_parameters.w.len(), 9);
-/// ```
-/// ## 3D:
-/// ```
-/// # use lbflow::velocity_set::VelocitySet;
-/// # use lbflow::velocity_set::Parameters;
-/// let velocity_set_parameters = Parameters::test_default(3);
-/// assert_eq!(velocity_set_parameters.d, 3);
-/// assert_eq!(velocity_set_parameters.q, 27);
-/// assert_eq!(velocity_set_parameters.c.len(), 27);
-/// assert_eq!(velocity_set_parameters.w.len(), 27);
-/// ```
 impl Parameters {
-    pub fn test_default(dim: usize) -> Self {
+    pub(crate) fn test_default(dim: usize) -> Self {
         match dim {
             2 => Default::default(),
-            3 => D3Q27.get_velocity_set_parameters(),
+            3 => D3Q19.get_velocity_set_parameters(),
             _ => panic!("Unsupported dimension: {dim}"),
         }
     }
 }
 
 impl Parameters {
-    pub fn get_d(&self) -> usize {
+    pub(crate) fn get_d(&self) -> usize {
         self.d
     }
 
-    pub fn get_q(&self) -> usize {
+    pub(crate) fn get_q(&self) -> usize {
         self.q
     }
 
-    pub fn get_c(&self) -> &Vec<Vec<i32>> {
+    pub(crate) fn get_c(&self) -> &Vec<Vec<i32>> {
         &self.c
     }
 
-    pub fn get_w(&self) -> &Vec<Float> {
+    pub(crate) fn get_w(&self) -> &Vec<Float> {
         &self.w
     }
 
-    pub fn get_q_bar(&self) -> &Vec<usize> {
+    pub(crate) fn get_q_bar(&self) -> &Vec<usize> {
         &self.q_bar
     }
 
-    pub fn get_q_faces(&self, boundary_face: &BoundaryFace) -> &Vec<usize> {
+    pub(crate) fn get_q_faces(&self, boundary_face: &BoundaryFace) -> &Vec<usize> {
         self.q_faces
             .get(boundary_face)
             .expect("Boundary face not found")
     }
 
-    pub fn get_face_normal_direction(&self, boundary_face: &BoundaryFace) -> &usize {
-        self.face_normal_directions
+    pub(crate) fn get_face_normal_direction(&self, boundary_face: &BoundaryFace) -> usize {
+        *self
+            .face_normal_directions
             .get(boundary_face)
             .expect("Boundary face not found")
     }
 
-    pub fn get_velocity_computation(&self) -> Option<VectorComputation> {
+    pub(crate) fn get_velocity_computation(&self) -> Option<VectorComputation> {
         self.velocity_computation
     }
 
-    pub fn get_opposite_direction(&self, direction: usize) -> usize {
+    pub(crate) fn get_opposite_direction(&self, direction: usize) -> usize {
         self.get_q_bar()[direction]
     }
 
-    pub fn get_mrt_matrix(&self) -> &Vec<Vec<Float>> {
+    pub(crate) fn get_mrt_matrix(&self) -> &Vec<Vec<Float>> {
         &self.mrt_matrix
     }
 
-    pub fn get_mrt_inverse_matrix(&self) -> &Vec<Vec<Float>> {
+    pub(crate) fn get_mrt_inverse_matrix(&self) -> &Vec<Vec<Float>> {
         &self.mrt_inverse_matrix
     }
 
-    pub fn get_mrt_equilibrium_moments_computation(&self) -> Option<&VectorComputation> {
+    pub(crate) fn get_mrt_equilibrium_moments_computation(&self) -> Option<&VectorComputation> {
         self.mrt_equilibrium_moments_computation.as_ref()
     }
 }
@@ -262,5 +242,106 @@ fn compute_inverse_matrix(matrix: Vec<Vec<Float>>) -> Vec<Vec<Float>> {
         None => {
             panic!("Singular matrix!")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_d_d2q9() {
+        let vel_set_params = Parameters::test_default(2);
+
+        assert_eq!(vel_set_params.get_d(), 2);
+    }
+
+    #[test]
+    fn test_get_d_d3q19() {
+        let vel_set_params = Parameters::test_default(3);
+
+        assert_eq!(vel_set_params.get_d(), 3);
+    }
+
+    #[test]
+    fn test_get_q_d2q9() {
+        let vel_set_params = Parameters::test_default(2);
+
+        assert_eq!(vel_set_params.get_q(), 9);
+    }
+
+    #[test]
+    fn test_get_q_d3q19() {
+        let vel_set_params = Parameters::test_default(3);
+
+        assert_eq!(vel_set_params.get_q(), 19);
+    }
+
+    #[test]
+    fn test_get_c_d2q9() {
+        let vel_set_params = Parameters::test_default(2);
+
+        let c = vel_set_params.get_c();
+
+        assert_eq!(c[0], vec![0, 0]);
+        assert_eq!(c[1], vec![1, 0]);
+        assert_eq!(c[5], vec![1, 1]);
+    }
+
+    #[test]
+    fn test_get_c_d3q19() {
+        let vel_set_params = Parameters::test_default(3);
+
+        let c = vel_set_params.get_c();
+
+        assert_eq!(c[0], vec![0, 0, 0]);
+        assert_eq!(c[1], vec![1, 0, 0]);
+        assert_eq!(c[7], vec![1, 1, 0]);
+        assert_eq!(c[9], vec![1, 0, 1]);
+    }
+
+    #[test]
+    fn test_get_w_d2q9() {
+        let vel_set_params = Parameters::test_default(2);
+
+        let w = vel_set_params.get_w();
+
+        assert!(w[0] - 4.0 / 9.0 < 1e-12);
+        assert!(w[1] - 1.0 / 9.0 < 1e-12);
+        assert!(w[5] - 1.0 / 36.0 < 1e-12);
+    }
+
+    #[test]
+    fn test_get_w_d3q19() {
+        let vel_set_params = Parameters::test_default(3);
+
+        let w = vel_set_params.get_w();
+
+        assert!(w[0] - 1.0 / 3.0 < 1e-12);
+        assert!(w[1] - 1.0 / 18.0 < 1e-12);
+        assert!(w[7] - 1.0 / 36.0 < 1e-12);
+    }
+
+    #[test]
+    fn test_get_q_bar_d2q9() {
+        let vel_set_params = Parameters::test_default(2);
+
+        let q_bar = vel_set_params.get_q_bar();
+
+        assert_eq!(q_bar[0], 0);
+        assert_eq!(q_bar[1], 3);
+        assert_eq!(q_bar[5], 7);
+    }
+
+    #[test]
+    fn test_get_q_bar_d3q19() {
+        let vel_set_params = Parameters::test_default(3);
+
+        let q_bar = vel_set_params.get_q_bar();
+
+        assert_eq!(q_bar[0], 0);
+        assert_eq!(q_bar[1], 2);
+        assert_eq!(q_bar[7], 8);
+        assert_eq!(q_bar[9], 10);
     }
 }

@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::prelude_crate::*;
 
 pub struct Parameters {
     g_function: Float,
@@ -18,15 +18,15 @@ impl Parameters {
 }
 
 impl Parameters {
-    pub fn get_g_function(&self) -> Float {
+    pub(super) fn get_g_function(&self) -> Float {
         self.g_function
     }
 
-    pub fn get_wall_density(&self) -> Float {
+    fn _get_wall_density(&self) -> Float {
         self.wall_density
     }
 
-    pub fn get_wall_phi(&self) -> Float {
+    pub(super) fn get_wall_phi(&self) -> Float {
         self.wall_phi
     }
 }

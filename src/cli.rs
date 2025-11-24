@@ -1,21 +1,21 @@
-use crate::prelude::*;
+use crate::prelude_crate::*;
 use clap::{Arg, Command};
 use core_affinity::{get_core_ids, set_for_current};
 use std::num::{NonZero, NonZeroUsize};
 
-pub type LbResult<T> = Result<T, Box<dyn std::error::Error>>;
+pub(crate) type LbResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Debug)]
-pub struct Config {
-    pub mode: Mode,
-    pub number_of_threads: NonZeroUsize,
-    pub core_affinity: bool,
-    pub write_data: Option<WriteDataMode>,
-    pub max_iterations: Option<usize>,
-    pub freeze_momentum: bool,
-    pub node_type: bool,
-    pub physical_data: bool,
-    pub keep: bool,
+pub(crate) struct Config {
+    pub(crate) mode: Mode,
+    pub(crate) number_of_threads: NonZeroUsize,
+    pub(crate) core_affinity: bool,
+    pub(crate) write_data: Option<WriteDataMode>,
+    pub(crate) max_iterations: Option<usize>,
+    pub(crate) freeze_momentum: bool,
+    pub(crate) node_type: bool,
+    pub(crate) physical_data: bool,
+    pub(crate) keep: bool,
 }
 
 impl Default for Config {
@@ -35,27 +35,27 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn get_number_of_threads(&self) -> usize {
+    pub(crate) fn get_number_of_threads(&self) -> usize {
         usize::from(self.number_of_threads)
     }
 
-    pub fn get_write_data_mode(&self) -> &WriteDataMode {
+    pub(crate) fn get_write_data_mode(&self) -> &WriteDataMode {
         self.write_data.as_ref().unwrap()
     }
 
-    pub fn get_max_iterations(&self) -> usize {
+    pub(crate) fn get_max_iterations(&self) -> usize {
         self.max_iterations.unwrap()
     }
 }
 
 #[derive(Debug)]
-pub enum Mode {
+pub(crate) enum Mode {
     Run,
     PostVTK,
     PostUnify,
 }
 
-pub fn get_args() -> LbResult<clap::ArgMatches> {
+pub(crate) fn get_args() -> LbResult<clap::ArgMatches> {
     let matches = clap::command!()
         .propagate_version(true)
         .subcommand_required(true)
@@ -123,23 +123,25 @@ pub fn get_args() -> LbResult<clap::ArgMatches> {
                                 .action(clap::ArgAction::SetTrue),
                         ),
                 )
-                .subcommand(Command::new("unify").about(
-                    "Unify the parallel output files into a single file for each time step",
-                )
-                .arg(
-                    Arg::new("keep")
-                        .short('k')
-                        .long("keep")
-                        .help("Keep the intermediate files after unification")
-                        .action(clap::ArgAction::SetTrue)
-                )
-            ),
+                .subcommand(
+                    Command::new("unify")
+                        .about(
+                            "Unify the parallel output files into a single file for each time step",
+                        )
+                        .arg(
+                            Arg::new("keep")
+                                .short('k')
+                                .long("keep")
+                                .help("Keep the intermediate files after unification")
+                                .action(clap::ArgAction::SetTrue),
+                        ),
+                ),
         )
         .get_matches();
     Ok(matches)
 }
 
-pub fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
+pub(crate) fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
     let number_of_threads = *matches
         .get_one::<NonZeroUsize>("number_of_threads")
         .expect("Has 1 as default");
@@ -186,7 +188,7 @@ pub fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
     }
 }
 
-pub fn init_global_pool(num_threads: usize, pin_all_cores: bool) {
+pub(crate) fn init_global_pool(num_threads: usize, pin_all_cores: bool) {
     if pin_all_cores {
         let cores = get_core_ids().expect("listar cores do sistema");
         rayon::ThreadPoolBuilder::new()

@@ -1,20 +1,20 @@
 // ------------------------------------------------------------------------------- MODULES
 
-pub mod bc;
-pub mod io;
-pub mod lattice;
-pub mod multiphase;
+pub(crate) mod bc;
+pub(crate) mod io;
+mod lattice;
+pub(crate) mod multiphase;
 mod node;
-pub mod post;
+pub(crate) mod post;
 
 // ------------------------------------------------------------------------------- IMPORTS
 
 use crate::cli;
-use crate::prelude::*;
+use crate::prelude_crate::*;
 use bc::BoundaryCondition;
-pub use lattice::Lattice;
-pub use node::{Node, ShallowNode};
-pub use post::{PostFunction, PostResult};
+pub(crate) use lattice::Lattice;
+pub(crate) use node::Node;
+pub(crate) use post::PostFunction;
 
 // -------------------------------------------------------------------- STRUCT: Parameters
 
@@ -70,7 +70,7 @@ impl Default for Parameters {
 }
 
 impl Parameters {
-    pub fn test_default(dim: usize) -> Self {
+    fn _test_default(dim: usize) -> Self {
         match dim {
             2 => Default::default(),
             3 => Parameters {
@@ -80,7 +80,7 @@ impl Parameters {
                     vec![0.0, 0.0, 0.0],
                     vec![10, 10, 10],
                 ),
-                velocity_set: VelocitySet::D3Q27,
+                velocity_set: VelocitySet::D3Q19,
                 node_types: functions::only_fluid_nodes(vec![10, 10, 10]),
                 boundary_conditions: vec![
                     (BoundaryFace::West, BoundaryCondition::NoSlip),
@@ -106,9 +106,9 @@ impl Parameters {
 // --------------------------------------------------------------------- STRUCT: Residuals
 
 #[derive(Debug, Clone)]
-pub struct Residuals {
-    pub density: Float,
-    pub velocity: Vec<Float>,
+pub(super) struct Residuals {
+    density: Float,
+    velocity: Vec<Float>,
 }
 
 impl Residuals {
@@ -118,45 +118,45 @@ impl Residuals {
 }
 
 impl Residuals {
-    pub fn get_density(&self) -> Float {
+    pub(super) fn get_density(&self) -> Float {
         self.density
     }
 
-    pub fn set_density(&mut self, density: Float) {
+    fn _set_density(&mut self, density: Float) {
         self.density = density;
     }
 
-    pub fn get_velocity(&self) -> &Vec<Float> {
+    pub(super) fn get_velocity(&self) -> &Vec<Float> {
         &self.velocity
     }
 
-    pub fn set_velocity(&mut self, velocity: Vec<Float>) {
+    fn _set_velocity(&mut self, velocity: Vec<Float>) {
         self.velocity = velocity;
     }
 }
 
 #[derive(Debug)]
-pub struct ConversionFactor {
-    pub collision_operator: Arc<CollisionOperator>,
-    pub velocity_set: VelocitySet,
-    pub delta_x: Float,
-    pub delta_t: Float,
-    pub length_conversion_factor: Float,
-    pub time_conversion_factor: Float,
-    pub density_conversion_factor: Float,
-    pub velocity_conversion_factor: Float,
-    pub pressure_conversion_factor: Float,
-    pub viscosity_conversion_factor: Float,
-    pub physical_density: Float,
-    pub reference_pressure: Float,
-    pub shear_viscosity: Float,
-    pub bulk_viscosity: Float,
-    pub physical_shear_viscosity: Float,
-    pub physical_bulk_viscosity: Float,
+pub(crate) struct ConversionFactor {
+    pub(crate) collision_operator: Arc<CollisionOperator>,
+    pub(crate) velocity_set: VelocitySet,
+    pub(crate) delta_x: Float,
+    pub(crate) delta_t: Float,
+    pub(crate) length_conversion_factor: Float,
+    pub(crate) time_conversion_factor: Float,
+    pub(crate) density_conversion_factor: Float,
+    pub(crate) velocity_conversion_factor: Float,
+    pub(crate) pressure_conversion_factor: Float,
+    pub(crate) viscosity_conversion_factor: Float,
+    pub(crate) physical_density: Float,
+    pub(crate) reference_pressure: Float,
+    pub(crate) shear_viscosity: Float,
+    pub(crate) bulk_viscosity: Float,
+    pub(crate) physical_shear_viscosity: Float,
+    pub(crate) physical_bulk_viscosity: Float,
 }
 
 impl ConversionFactor {
-    pub fn new(
+    fn new(
         collision_operator: Arc<CollisionOperator>,
         velocity_set: VelocitySet,
         delta_x: Float,
@@ -235,7 +235,7 @@ impl ConversionFactor {
         }
     }
 
-    pub fn from(params: Parameters) -> Self {
+    pub(crate) fn from(params: Parameters) -> Self {
         ConversionFactor::new(
             Arc::new(params.collision_operator),
             params.velocity_set,
@@ -262,7 +262,7 @@ impl Default for ConversionFactor {
 
 // ----------------------------------------------------------------------------- FUNCTIONS
 
-pub fn run(config: Config, momentum_params: Parameters) {
+fn run(config: Config, momentum_params: Parameters) {
     io::case_setup(&momentum_params);
 
     let lat = Lattice::new(config, momentum_params);

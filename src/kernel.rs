@@ -1,6 +1,6 @@
-use crate::prelude::*;
+use crate::prelude_crate::*;
 
-pub fn equilibrium(
+pub(crate) fn equilibrium(
     value: Float,
     velocity: &[Float],
     vel_set_params: &velocity_set::Parameters,
@@ -25,7 +25,7 @@ pub fn equilibrium(
     f_eq
 }
 
-pub fn bgk_collision(
+pub(crate) fn bgk_collision(
     f: &[Float],
     f_eq: &[Float],
     tau: Float,
@@ -41,7 +41,7 @@ pub fn bgk_collision(
     f_star
 }
 
-pub fn trt_collision(
+pub(crate) fn trt_collision(
     f: &[Float],
     f_eq: &[Float],
     omega_plus: Float,
@@ -64,7 +64,7 @@ pub fn trt_collision(
     f_star
 }
 
-pub fn mrt_collision(
+pub(crate) fn mrt_collision(
     value: Float,
     velocity: &[Float],
     f: &[Float],
@@ -119,7 +119,7 @@ pub fn mrt_collision(
     f_star
 }
 
-pub fn momentum_source_term(
+pub(crate) fn momentum_source_term(
     velocity: &[Float],
     force: &[Float],
     tau: Float,
@@ -153,7 +153,7 @@ pub fn momentum_source_term(
     source_term
 }
 
-pub fn passive_scalar_source_term(
+pub(crate) fn passive_scalar_source_term(
     source_value: Float,
     tau_g: Float,
     vel_set_params: &velocity_set::Parameters,
@@ -168,7 +168,7 @@ pub fn passive_scalar_source_term(
     source_term
 }
 
-pub fn pseudo_potential(density: Float) -> Float {
+pub(crate) fn pseudo_potential(density: Float) -> Float {
     let referencial_density = LATTICE_DENSITY;
     referencial_density * (1.0 - (-density / referencial_density).exp())
 }

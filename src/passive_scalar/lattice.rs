@@ -1,13 +1,10 @@
-use super::ConversionFactor;
 use super::Node;
 use super::Parameters;
 use super::Residuals;
 use super::bc::BoundaryCondition::{self, *};
-use crate::prelude::*;
+use crate::prelude_crate::*;
 use crate::{FACES_2D, FACES_3D};
 use rayon::prelude::*;
-
-const TOLERANCE_SCALAR_VALUE: Float = 1e-7;
 
 #[derive(Debug)]
 pub struct Lattice {
@@ -16,7 +13,6 @@ pub struct Lattice {
     nodes: Vec<Arc<Node>>,
     collision_operator: Arc<CollisionOperator>,
     velocity_set_parameters: Arc<velocity_set::Parameters>,
-    _conversion_factor: Arc<ConversionFactor>,
     fluid_nodes: Vec<Arc<Node>>,
     boundary_nodes: HashMap<BoundaryFace, Vec<Arc<Node>>>,
     bounce_back_nodes: Vec<Arc<Node>>,
@@ -25,7 +21,7 @@ pub struct Lattice {
 }
 
 impl Lattice {
-    pub fn new(params: Parameters, momentum_lattice: Arc<momentum::Lattice>) -> Self {
+    pub(super) fn new(params: Parameters, momentum_lattice: Arc<momentum::Lattice>) -> Self {
         let initial_scalar_value = params.initial_scalar_value;
 
         let source_value = Arc::new(params.source_value);
@@ -38,12 +34,6 @@ impl Lattice {
         let c = &(velocity_set_parameters.c);
         let number_of_nodes = momentum_lattice.get_number_of_nodes();
 
-        let conversion_factor = Arc::new(ConversionFactor::new(
-            params.tau_g,
-            momentum_lattice.get_conversion_factor().delta_x,
-            momentum_lattice.get_conversion_factor().delta_t,
-        ));
-
         let nodes = momentum_lattice
             .get_nodes()
             .iter()
@@ -54,7 +44,6 @@ impl Lattice {
                     initial_scalar_value,
                     Arc::clone(&source_value),
                     Arc::clone(&velocity_set_parameters),
-                    Arc::clone(&conversion_factor),
                     Arc::clone(node),
                 ))
             })
@@ -163,8 +152,6 @@ impl Lattice {
                 .map(|(i, neighbor_node)| (*i, Arc::clone(neighbor_node)))
                 .collect::<HashMap<usize, Arc<Node>>>();
             if !bounce_back_neighbor_nodes.is_empty() {
-                // node.bounce_back_neighbor_nodes
-                //     .replace(Some(bounce_back_neighbor_nodes));
                 node.set_bounce_back_neighbor_nodes(bounce_back_neighbor_nodes);
                 bounce_back_nodes.push(Arc::clone(node));
             }
@@ -176,7 +163,6 @@ impl Lattice {
             nodes,
             collision_operator: Arc::clone(&collision_operator),
             velocity_set_parameters,
-            _conversion_factor: Arc::clone(&conversion_factor),
             fluid_nodes,
             boundary_nodes,
             boundary_conditions: HashMap::from_iter(params.boundary_conditions),
@@ -187,11 +173,11 @@ impl Lattice {
 }
 
 impl Lattice {
-    pub fn get_momentum_lattice(&self) -> &Arc<momentum::Lattice> {
+    pub(super) fn get_momentum_lattice(&self) -> &Arc<momentum::Lattice> {
         &self.momentum_lattice
     }
 
-    pub fn get_node(&self, i: usize) -> &Arc<Node> {
+    fn _get_node(&self, i: usize) -> &Arc<Node> {
         &self.nodes[i]
     }
 
@@ -199,27 +185,25 @@ impl Lattice {
         &self.fluid_nodes
     }
 
-    pub fn get_bounce_back_nodes(&self) -> &Vec<Arc<Node>> {
+    fn get_bounce_back_nodes(&self) -> &Vec<Arc<Node>> {
         &self.bounce_back_nodes
     }
 
-    pub fn get_boundary_nodes(&self) -> &HashMap<BoundaryFace, Vec<Arc<Node>>> {
+    fn get_boundary_nodes(&self) -> &HashMap<BoundaryFace, Vec<Arc<Node>>> {
         &self.boundary_nodes
     }
 
-    pub fn get_boundary_condition(&self, boundary_face: &BoundaryFace) -> &BoundaryCondition {
+    fn get_boundary_condition(&self, boundary_face: &BoundaryFace) -> &BoundaryCondition {
         self.boundary_conditions
             .get(boundary_face)
             .expect("Boundary faces not found")
     }
 
-    pub fn get_residuals(&self) -> Residuals {
-        // self.residuals.borrow().clone()
+    pub(super) fn get_residuals(&self) -> Residuals {
         self.residuals.read().unwrap().clone()
     }
 
-    pub fn set_residuals(&self, residuals: Residuals) {
-        // self.residuals.replace(residuals);
+    fn set_residuals(&self, residuals: Residuals) {
         let mut residuals_guard = self.residuals.write().unwrap();
         *residuals_guard = residuals;
     }
@@ -228,42 +212,40 @@ impl Lattice {
         &self.nodes
     }
 
-    pub fn get_scalar_name(&self) -> &str {
+    pub(super) fn get_scalar_name(&self) -> &str {
         &self.scalar_name
     }
-}
 
-impl Lattice {
-    pub fn get_d(&self) -> &usize {
+    fn get_d(&self) -> &usize {
         &self.velocity_set_parameters.d
     }
 
-    pub fn get_collision_operator(&self) -> &Arc<CollisionOperator> {
+    fn get_collision_operator(&self) -> &Arc<CollisionOperator> {
         &self.collision_operator
     }
 }
 
 impl Lattice {
-    pub fn initialize_nodes(&self) {
+    pub(super) fn initialize_nodes(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
             node.compute_equilibrium();
             node.set_g(node.get_g_eq());
         });
     }
 
-    pub fn update_scalar_value_step(&self) {
+    fn update_scalar_value_step(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
             node.compute_scalar_value();
         });
     }
 
-    pub fn equilibrium_step(&self) {
+    fn equilibrium_step(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
             node.compute_equilibrium();
         });
     }
 
-    pub fn collision_step(&self) {
+    fn collision_step(&self) {
         match self.get_collision_operator().as_ref() {
             BGK(tau_g) => self.get_fluid_nodes().par_iter().for_each(|node| {
                 node.compute_bgk_collision(*tau_g);
@@ -277,19 +259,19 @@ impl Lattice {
         }
     }
 
-    pub fn streaming_step(&self) {
+    fn streaming_step(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
             node.compute_streaming();
         });
     }
 
-    pub fn inner_anti_bounce_back_step(&self) {
+    fn inner_anti_bounce_back_step(&self) {
         self.get_bounce_back_nodes().par_iter().for_each(|node| {
             node.compute_inner_anti_bounce_back();
         });
     }
 
-    pub fn boundary_conditions_step(&self) {
+    fn boundary_conditions_step(&self) {
         self.get_boundary_nodes()
             .iter()
             .for_each(|(boundary_face, nodes)| {
@@ -324,7 +306,7 @@ impl Lattice {
             });
     }
 
-    pub fn compute_lattice_residuals(&self) {
+    pub(super) fn compute_lattice_residuals(&self) {
         let node_residuals = self
             .get_fluid_nodes()
             .par_iter()
@@ -340,26 +322,25 @@ impl Lattice {
         });
     }
 
-    pub fn update_shallow_nodes(&self) {
+    pub(super) fn update_shallow_nodes(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
             node.update_shallow_node();
         });
     }
 
-    pub fn stop_condition(&self) -> bool {
+    pub(super) fn stop_condition(&self) -> bool {
         let momentum_residuals = self.get_momentum_lattice().get_residuals();
-        let converged_density = momentum_residuals.density <= momentum::lattice::TOLERANCE_DENSITY;
+        let converged_density = momentum_residuals.get_density() <= TOLERANCE_DENSITY;
         let converged_velocity = momentum_residuals
-            .velocity
+            .get_velocity()
             .iter()
-            .all(|&u_x| u_x <= momentum::lattice::TOLERANCE_VELOCITY);
+            .all(|&u_x| u_x <= TOLERANCE_VELOCITY);
         let passive_scalar_residuals = self.get_residuals();
         let converged_scalar_value =
             passive_scalar_residuals.scalar_value <= TOLERANCE_SCALAR_VALUE;
         let converged_quantities =
             converged_density && converged_velocity && converged_scalar_value;
-        let min_iterations =
-            self.get_momentum_lattice().get_time_step() > momentum::lattice::MIN_ITER;
+        let min_iterations = self.get_momentum_lattice().get_time_step() > MIN_ITER;
         let max_iterations = self.get_momentum_lattice().get_time_step()
             > self
                 .get_momentum_lattice()
@@ -368,7 +349,7 @@ impl Lattice {
         (min_iterations && converged_quantities) || max_iterations
     }
 
-    pub fn main_steps(&self) {
+    pub(super) fn main_steps(&self) {
         self.update_scalar_value_step();
         self.equilibrium_step();
         self.collision_step();
@@ -378,13 +359,13 @@ impl Lattice {
     }
 }
 
-pub struct LatticeVec {
+pub(super) struct LatticeVec {
     passive_scalar_lattices: Vec<Lattice>,
     momentum_lattice: Arc<momentum::Lattice>,
 }
 
 impl LatticeVec {
-    pub fn new(
+    pub(super) fn new(
         params_vec: Vec<passive_scalar::Parameters>,
         momentum_lattice: Arc<momentum::Lattice>,
     ) -> Self {
@@ -400,61 +381,60 @@ impl LatticeVec {
 }
 
 impl LatticeVec {
-    pub fn get_momentum_lattice(&self) -> &Arc<momentum::Lattice> {
+    pub(super) fn get_momentum_lattice(&self) -> &Arc<momentum::Lattice> {
         &self.momentum_lattice
     }
 
-    pub fn get_passive_scalar_lattices(&self) -> &Vec<Lattice> {
+    pub(super) fn get_passive_scalar_lattices(&self) -> &Vec<Lattice> {
         &self.passive_scalar_lattices
     }
 }
 
 impl LatticeVec {
-    pub fn initialize_nodes(&self) {
+    pub(super) fn initialize_nodes(&self) {
         self.passive_scalar_lattices.iter().for_each(|lattice| {
             lattice.initialize_nodes();
         });
     }
 
-    pub fn main_steps(&self) {
+    pub(super) fn main_steps(&self) {
         self.passive_scalar_lattices.iter().for_each(|lattice| {
             lattice.main_steps();
         });
     }
 
-    pub fn compute_lattice_residuals(&self) {
+    pub(super) fn compute_lattice_residuals(&self) {
         self.passive_scalar_lattices.iter().for_each(|lattice| {
             lattice.compute_lattice_residuals();
         });
     }
 
-    pub fn write_data(&self) {
+    pub(super) fn write_data(&self) {
         self.passive_scalar_lattices.iter().for_each(|lattice| {
             lattice.write_data();
         });
     }
 
-    pub fn update_shallow_nodes(&self) {
+    pub(super) fn update_shallow_nodes(&self) {
         self.passive_scalar_lattices.iter().for_each(|lattice| {
             lattice.update_shallow_nodes();
         });
     }
 
-    pub fn stop_condition(&self) -> bool {
+    pub(super) fn stop_condition(&self) -> bool {
         let momentum_residuals = self.get_momentum_lattice().get_residuals();
-        let converged_density = momentum_residuals.density <= momentum::lattice::TOLERANCE_DENSITY;
+        let converged_density = momentum_residuals.get_density() <= TOLERANCE_DENSITY;
         let converged_velocity = momentum_residuals
-            .velocity
+            .get_velocity()
             .iter()
-            .all(|&u_x| u_x <= momentum::lattice::TOLERANCE_VELOCITY);
+            .all(|&u_x| u_x <= TOLERANCE_VELOCITY);
         let converged_scalar_values = self
             .passive_scalar_lattices
             .iter()
             .all(|lattice| lattice.get_residuals().scalar_value <= TOLERANCE_SCALAR_VALUE);
         let converged_quantities =
             converged_density && converged_velocity && converged_scalar_values;
-        let min_iterations =
-            self.get_momentum_lattice().get_time_step() > momentum::lattice::MIN_ITER;
+        let min_iterations = self.get_momentum_lattice().get_time_step() > MIN_ITER;
         let max_iterations = self.get_momentum_lattice().get_time_step()
             > self
                 .get_momentum_lattice()

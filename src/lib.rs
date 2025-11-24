@@ -1,19 +1,19 @@
 // ------------------------------------------------------------------------------- MODULES
 
 mod cli;
-pub mod constants;
+mod constants;
 pub mod functions;
 mod io;
-pub mod kernel;
+mod kernel;
 pub mod momentum;
 pub mod passive_scalar;
-mod post;
 pub mod prelude;
-pub mod velocity_set;
+mod prelude_crate;
+mod velocity_set;
 
 // ------------------------------------------------------------------------------- IMPORTS
 
-use prelude::*;
+use prelude_crate::*;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum BoundaryFace {

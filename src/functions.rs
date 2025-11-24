@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::prelude_crate::*;
 use std::path::Path;
 
 pub fn from_bounce_back_map_file() -> Vec<NodeType> {
