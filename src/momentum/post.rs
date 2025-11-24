@@ -1,6 +1,6 @@
-pub mod vtk;
+pub(crate) mod vtk;
 
-use crate::prelude::*;
+use crate::prelude_crate::*;
 use rayon::prelude::*;
 
 pub type PostComputation = fn(&momentum::Lattice) -> Vec<PostResult>;

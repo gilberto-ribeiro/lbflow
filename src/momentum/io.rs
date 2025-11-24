@@ -1,7 +1,7 @@
 // ------------------------------------------------------------------------------- IMPORTS
 
 use super::Lattice;
-use crate::prelude::*;
+use crate::prelude_crate::*;
 use colored::*;
 use rayon::prelude::*;
 use std::fs::{self, File, OpenOptions};

@@ -1,6 +1,6 @@
 // ------------------------------------------------------------------------------- IMPORTS
 
-use crate::prelude::*;
+use crate::prelude_crate::*;
 use colored::*;
 use core::panic;
 use regex::Regex;
