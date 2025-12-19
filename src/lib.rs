@@ -2,7 +2,6 @@
 
 mod cli;
 mod constants;
-pub mod functions;
 mod io;
 mod kernel;
 pub mod momentum;
