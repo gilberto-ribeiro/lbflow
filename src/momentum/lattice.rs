@@ -25,8 +25,9 @@ pub struct Lattice {
 
 impl Lattice {
     pub(crate) fn new(config: Config, params: Parameters) -> Self {
-        let initial_density = &params.initial_density;
-        let initial_velocity = &params.initial_velocity;
+        let n = &params.n;
+        let initial_density = &params.initial_density.generate(n);
+        let initial_velocity = &params.initial_velocity.generate(n);
 
         let force = Arc::new(params.force);
         let collision_operator = Arc::new(params.collision_operator);
@@ -42,8 +43,7 @@ impl Lattice {
 
         let d = &velocity_set_params.d;
         let c = &(velocity_set_params.c);
-        let n = &params.n;
-        let node_types = &params.node_types;
+        let node_types = &params.node_types.generate(n);
         let physical_delta_x = params.delta_x;
         let num_nodes = n.iter().product::<usize>();
         if num_nodes != node_types.len() {
@@ -387,6 +387,11 @@ impl Lattice {
                         });
                     }
                     Periodic => {}
+                    ZouHe { density, velocity } => {
+                        nodes.par_iter().for_each(|node| {
+                            node.compute_zou_he_bc(boundary_face, density, velocity);
+                        });
+                    }
                 }
             });
     }
