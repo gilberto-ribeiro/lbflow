@@ -18,7 +18,7 @@ pub(crate) use post::PostFunction;
 
 // -------------------------------------------------------------------- STRUCT: Parameters
 
-pub struct Parameters {
+pub struct Parameters<'a> {
     pub n: Vec<usize>,
     pub collision_operator: CollisionOperator,
     pub force: Option<Box<dyn Fn(&Node) -> Vec<Float> + Send + Sync>>,
@@ -27,15 +27,15 @@ pub struct Parameters {
     pub delta_t: Float,
     pub physical_density: Float,
     pub reference_pressure: Float,
-    pub initial_density: Vec<Float>,
-    pub initial_velocity: Vec<Vec<Float>>,
+    pub initial_density: InitialDensity<'a>,
+    pub initial_velocity: InitialVelocity<'a>,
     pub velocity_set: VelocitySet,
     pub boundary_conditions: Vec<(BoundaryFace, BoundaryCondition)>,
-    pub node_types: Vec<NodeType>,
+    pub node_types: NodeTypes,
     pub post_functions: Option<Vec<PostFunction>>,
 }
 
-impl Default for Parameters {
+impl<'a> Default for Parameters<'a> {
     fn default() -> Self {
         Parameters {
             n: vec![10, 10],
@@ -46,10 +46,10 @@ impl Default for Parameters {
             delta_t: 0.01,
             physical_density: 998.0,
             reference_pressure: 101325.0,
-            initial_density: functions::uniform_density(1.0, vec![10, 10]),
-            initial_velocity: functions::uniform_velocity(vec![0.0, 0.0], vec![10, 10]),
+            initial_density: InitialDensity::Uniform(1.0),
+            initial_velocity: InitialVelocity::Uniform(vec![0.0, 0.0]),
             velocity_set: VelocitySet::D2Q9,
-            node_types: functions::only_fluid_nodes(vec![10, 10]),
+            node_types: NodeTypes::OnlyFluidNodes,
             boundary_conditions: vec![
                 (BoundaryFace::West, BoundaryCondition::NoSlip),
                 (BoundaryFace::East, BoundaryCondition::NoSlip),
@@ -67,19 +67,16 @@ impl Default for Parameters {
     }
 }
 
-impl Parameters {
+impl<'a> Parameters<'a> {
     fn _test_default(dim: usize) -> Self {
         match dim {
             2 => Default::default(),
             3 => Parameters {
                 n: vec![10, 10, 10],
-                initial_density: functions::uniform_density(1.0, vec![10, 10, 10]),
-                initial_velocity: functions::uniform_velocity(
-                    vec![0.0, 0.0, 0.0],
-                    vec![10, 10, 10],
-                ),
+                initial_density: InitialDensity::Uniform(1.0),
+                initial_velocity: InitialVelocity::Uniform(vec![0.0, 0.0, 0.0]),
                 velocity_set: VelocitySet::D3Q19,
-                node_types: functions::only_fluid_nodes(vec![10, 10, 10]),
+                node_types: NodeTypes::OnlyFluidNodes,
                 boundary_conditions: vec![
                     (BoundaryFace::West, BoundaryCondition::NoSlip),
                     (BoundaryFace::East, BoundaryCondition::NoSlip),
