@@ -9,25 +9,25 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 
-pub const DATA_PATH: &str = "./data";
-pub const PRE_PROCESSING_PATH: &str = "./pre_processing";
-pub const POST_PROCESSING_PATH: &str = "./post_processing";
-pub const VTK_PATH: &str = "./post_processing/vtk_files";
-pub const COORDINATES_FILE: &str = "coordinates.csv";
-pub const DENSITY_FILE: &str = "density.csv";
-pub const VELOCITY_FILE: &str = "velocity.csv";
-pub const RESIDUALS_FILE: &str = "residuals.csv";
-pub const NODE_TYPE_VTK_FILE: &str = "node_type.vtk";
-pub const RESIDUALS_GRAPH_FILE: &str = "gr_residuals.gp";
-pub const LIVE_RESIDUALS_GRAPH_FILE: &str = "live_residuals.gp";
-pub const BOUNCE_BACK_MAP_FILE: &str = "map.xyz";
+pub(crate) const DATA_PATH: &str = "./data";
+pub(crate) const PRE_PROCESSING_PATH: &str = "./pre_processing";
+pub(crate) const POST_PROCESSING_PATH: &str = "./post_processing";
+pub(crate) const VTK_PATH: &str = "./post_processing/vtk_files";
+pub(crate) const COORDINATES_FILE: &str = "coordinates.csv";
+pub(crate) const DENSITY_FILE: &str = "density.csv";
+pub(crate) const VELOCITY_FILE: &str = "velocity.csv";
+pub(crate) const RESIDUALS_FILE: &str = "residuals.csv";
+pub(crate) const NODE_TYPE_VTK_FILE: &str = "node_type.vtk";
+pub(crate) const RESIDUALS_GRAPH_FILE: &str = "gr_residuals.gp";
+pub(crate) const LIVE_RESIDUALS_GRAPH_FILE: &str = "live_residuals.gp";
+pub(crate) const BOUNCE_BACK_MAP_FILE: &str = "map.xyz";
 
 pub struct ResidualsInfo {
-    pub print_header: String,
-    pub print_line: String,
-    pub write_header: String,
-    pub write_line: String,
-    pub time_step: usize,
+    pub(crate) print_header: String,
+    pub(crate) print_line: String,
+    pub(crate) write_header: String,
+    pub(crate) write_line: String,
+    pub(crate) time_step: usize,
 }
 
 #[derive(Debug)]
@@ -36,7 +36,7 @@ pub enum WriteDataMode {
     ListOfSteps(Vec<usize>),
 }
 
-pub fn create_case_directories() -> LbResult<()> {
+pub(crate) fn create_case_directories() -> LbResult<()> {
     let list_of_paths = [
         DATA_PATH,
         PRE_PROCESSING_PATH,
@@ -58,7 +58,7 @@ pub fn create_case_directories() -> LbResult<()> {
     Ok(())
 }
 
-pub fn read_bounce_back_map() -> Vec<NodeType> {
+pub(crate) fn read_bounce_back_map() -> Vec<NodeType> {
     let pre_processing_path = Path::new(crate::io::PRE_PROCESSING_PATH);
     let path = pre_processing_path.join(crate::io::BOUNCE_BACK_MAP_FILE);
     let data = read_xyz_file(path).unwrap_or_else(|_| {
@@ -68,7 +68,7 @@ pub fn read_bounce_back_map() -> Vec<NodeType> {
     parse_node_type_from_string(&data)
 }
 
-pub fn progress_bar(current: usize, total: usize) {
+pub(crate) fn progress_bar(current: usize, total: usize) {
     let current = current + 1;
     let percentage = current as Float / total as Float;
     let bar_length = 50;
@@ -85,7 +85,7 @@ pub fn progress_bar(current: usize, total: usize) {
     }
 }
 
-pub fn parse_node_type_from_string(data: &[String]) -> Vec<NodeType> {
+fn parse_node_type_from_string(data: &[String]) -> Vec<NodeType> {
     data.iter()
         .map(|s| match s.as_str() {
             "0" => NodeType::Fluid,
@@ -95,7 +95,7 @@ pub fn parse_node_type_from_string(data: &[String]) -> Vec<NodeType> {
         .collect()
 }
 
-pub fn parse_scalar_from_string(data: Vec<String>) -> LbResult<Vec<Float>> {
+pub(crate) fn parse_scalar_from_string(data: Vec<String>) -> LbResult<Vec<Float>> {
     data.iter()
         .map(|s| {
             s.parse::<Float>()
@@ -104,7 +104,7 @@ pub fn parse_scalar_from_string(data: Vec<String>) -> LbResult<Vec<Float>> {
         .collect()
 }
 
-pub fn parse_vector_from_string(data: Vec<String>) -> LbResult<Vec<Vec<Float>>> {
+pub(crate) fn parse_vector_from_string(data: Vec<String>) -> LbResult<Vec<Vec<Float>>> {
     data.iter()
         .map(|s| {
             s.split(',')
@@ -118,7 +118,7 @@ pub fn parse_vector_from_string(data: Vec<String>) -> LbResult<Vec<Vec<Float>>> 
         .collect()
 }
 
-pub fn read_xyz_file<P: AsRef<Path>>(path: P) -> LbResult<Vec<String>> {
+fn read_xyz_file<P: AsRef<Path>>(path: P) -> LbResult<Vec<String>> {
     let mut file = File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
@@ -142,7 +142,7 @@ pub fn read_xyz_file<P: AsRef<Path>>(path: P) -> LbResult<Vec<String>> {
     Ok(vector)
 }
 
-pub fn read_csv_file<P: AsRef<Path>>(path: P) -> LbResult<Vec<String>> {
+pub(crate) fn read_csv_file<P: AsRef<Path>>(path: P) -> LbResult<Vec<String>> {
     let mut file = File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
@@ -154,7 +154,7 @@ pub fn read_csv_file<P: AsRef<Path>>(path: P) -> LbResult<Vec<String>> {
     Ok(data)
 }
 
-pub fn collect_time_steps() -> LbResult<Vec<usize>> {
+pub(crate) fn collect_time_steps() -> LbResult<Vec<usize>> {
     let mut time_steps = Vec::new();
     let dir = DATA_PATH;
     for entry in fs::read_dir(dir)? {
@@ -171,7 +171,7 @@ pub fn collect_time_steps() -> LbResult<Vec<usize>> {
     Ok(time_steps)
 }
 
-pub fn collect_parallel_files<P: AsRef<Path>>(dir: P, prefix: &str) -> LbResult<Vec<PathBuf>> {
+fn collect_parallel_files<P: AsRef<Path>>(dir: P, prefix: &str) -> LbResult<Vec<PathBuf>> {
     let pattern = format!(r"^{}_(\d+)\.csv$", regex::escape(prefix));
     let re = Regex::new(&pattern).unwrap();
     let mut items: Vec<(usize, PathBuf)> = Vec::new();
@@ -199,7 +199,7 @@ fn delete_parallel_files<P: AsRef<Path>>(dir: P, prefix: &str) -> LbResult<()> {
     Ok(())
 }
 
-pub fn read_parallel_csv_files<P: AsRef<Path>>(dir: P, prefix: &str) -> LbResult<Vec<String>> {
+fn read_parallel_csv_files<P: AsRef<Path>>(dir: P, prefix: &str) -> LbResult<Vec<String>> {
     Ok(collect_parallel_files(dir, prefix)?
         .into_iter()
         .flat_map(|path| match read_csv_file(path) {
@@ -212,7 +212,7 @@ pub fn read_parallel_csv_files<P: AsRef<Path>>(dir: P, prefix: &str) -> LbResult
         .collect())
 }
 
-pub fn unify_parallel_csv_files<P: AsRef<Path>>(
+pub(crate) fn unify_parallel_csv_files<P: AsRef<Path>>(
     dir: P,
     prefix: &str,
     header: &str,
@@ -231,14 +231,14 @@ pub fn unify_parallel_csv_files<P: AsRef<Path>>(
     Ok(())
 }
 
-pub fn print_residuals(info: &ResidualsInfo) {
-    if info.time_step % 100 == 0 {
+pub(crate) fn print_residuals(info: &ResidualsInfo) {
+    if info.time_step.is_multiple_of(100) {
         println!("{}\n", info.print_header);
     }
     println!("{}", info.print_line);
 }
 
-pub fn write_residuals(info: &ResidualsInfo) -> LbResult<()> {
+pub(crate) fn write_residuals(info: &ResidualsInfo) -> LbResult<()> {
     let data_path = Path::new(crate::io::DATA_PATH);
     let path = data_path.join(crate::io::RESIDUALS_FILE);
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;
@@ -249,11 +249,59 @@ pub fn write_residuals(info: &ResidualsInfo) -> LbResult<()> {
     Ok(())
 }
 
-pub fn get_case_name() -> String {
+pub(crate) fn get_case_name() -> String {
     let exe = std::env::current_exe().unwrap();
     Path::new(&exe)
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or(env!("CARGO_MANIFEST_DIR"))
         .to_string()
+}
+
+pub(crate) fn generate_uniform_scalars(value: Float, n: &[usize]) -> Vec<Float> {
+    let num_nodes = n.iter().product();
+    vec![value; num_nodes]
+}
+
+pub(crate) fn generate_uniform_vectors(value: Vec<Float>, n: &[usize]) -> Vec<Vec<Float>> {
+    let num_nodes = n.iter().product();
+    vec![value; num_nodes]
+}
+
+pub(crate) fn generate_scalars_from_file<P>(path: P) -> Vec<Float>
+where
+    P: AsRef<Path>,
+{
+    let error_msg = format!("Error reading {}.", path.as_ref().display());
+    let data = crate::io::read_csv_file(path).unwrap_or_else(|_| {
+        eprintln!("{}", error_msg);
+        std::process::exit(1);
+    });
+    crate::io::parse_scalar_from_string(data).unwrap()
+}
+
+pub(crate) fn generate_vectors_from_file<P>(path: P) -> Vec<Vec<Float>>
+where
+    P: AsRef<Path>,
+{
+    let error_msg = format!("Error reading {}.", path.as_ref().display());
+    let data = crate::io::read_csv_file(path).unwrap_or_else(|_| {
+        eprintln!("{}", error_msg);
+        std::process::exit(1);
+    });
+    crate::io::parse_vector_from_string(data).unwrap()
+}
+
+pub(crate) fn generate_scalars_from_time_step(time_step: usize, filename: &str) -> Vec<Float> {
+    let data_path = Path::new(crate::io::DATA_PATH);
+    let step_path = data_path.join(time_step.to_string());
+    let path = step_path.join(filename);
+    generate_scalars_from_file(path)
+}
+
+pub(crate) fn generate_vectors_from_time_step(time_step: usize, filename: &str) -> Vec<Vec<Float>> {
+    let data_path = Path::new(crate::io::DATA_PATH);
+    let step_path = data_path.join(time_step.to_string());
+    let path = step_path.join(filename);
+    generate_vectors_from_file(path)
 }
