@@ -12,6 +12,7 @@ use crate::{FACES_2D, FACES_3D};
 use std::collections::HashMap;
 
 pub(crate) type VectorComputation = fn(Float, Vec<Float>) -> Vec<Float>;
+type ZouHeComputation = fn(&BoundaryFace, &[Float], &Option<Float>, &[Option<Float>]) -> Vec<Float>;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VelocitySet {
@@ -43,6 +44,7 @@ impl VelocitySet {
                     (North, 4),
                 ]),
                 velocity_computation: Some(d2q9::velocity_computation),
+                zou_he_bc_computation: Some(d2q9::zou_he_bc_computation),
                 mrt_matrix: d2q9::MRT_MATRIX.iter().map(|row| row.to_vec()).collect(),
                 mrt_inverse_matrix: d2q9::MRT_INVERSE_MATRIX
                     .iter()
@@ -73,6 +75,7 @@ impl VelocitySet {
                     (Top, 6),
                 ]),
                 velocity_computation: None,
+                zou_he_bc_computation: None,
                 mrt_matrix: d3q15::MRT_MATRIX.iter().map(|row| row.to_vec()).collect(),
                 mrt_inverse_matrix: d3q15::MRT_INVERSE_MATRIX
                     .iter()
@@ -103,6 +106,7 @@ impl VelocitySet {
                     (Top, 6),
                 ]),
                 velocity_computation: None,
+                zou_he_bc_computation: None,
                 mrt_matrix: d3q19::MRT_MATRIX.iter().map(|row| row.to_vec()).collect(),
                 mrt_inverse_matrix: d3q19::MRT_INVERSE_MATRIX
                     .iter()
@@ -133,10 +137,9 @@ impl VelocitySet {
                     (Top, 6),
                 ]),
                 velocity_computation: Some(d3q27::velocity_computation),
+                zou_he_bc_computation: None,
                 mrt_matrix: d3q27::MRT_MATRIX.iter().map(|row| row.to_vec()).collect(),
-                mrt_inverse_matrix: compute_inverse_matrix(
-                    d3q27::MRT_MATRIX.iter().map(|row| row.to_vec()).collect(),
-                ),
+                mrt_inverse_matrix: vec![vec![0.0; d3q27::Q]; d3q27::Q], // Placeholder for inverse matrix
                 mrt_equilibrium_moments_computation: None,
             },
         }
@@ -154,6 +157,7 @@ pub(crate) struct Parameters {
     pub(crate) q_faces: HashMap<BoundaryFace, Vec<usize>>,
     pub(crate) face_normal_directions: HashMap<BoundaryFace, usize>,
     pub(crate) velocity_computation: Option<VectorComputation>,
+    pub(crate) zou_he_bc_computation: Option<ZouHeComputation>,
     pub(crate) mrt_matrix: Vec<Vec<Float>>,
     pub(crate) mrt_inverse_matrix: Vec<Vec<Float>>,
     pub(crate) mrt_equilibrium_moments_computation: Option<VectorComputation>,
@@ -230,20 +234,20 @@ impl Parameters {
     }
 }
 
-fn compute_inverse_matrix(matrix: Vec<Vec<Float>>) -> Vec<Vec<Float>> {
-    let rows = matrix.len();
-    let cols = matrix[0].len();
-    let flat_data: Vec<f64> = matrix.iter().flatten().cloned().collect();
-    let dmatrix = nalgebra::DMatrix::from_row_slice(rows, cols, &flat_data);
-    match dmatrix.try_inverse() {
-        Some(inverse) => (0..inverse.nrows())
-            .map(|i| inverse.row(i).iter().cloned().collect())
-            .collect::<Vec<Vec<f64>>>(),
-        None => {
-            panic!("Singular matrix!")
-        }
-    }
-}
+// fn compute_inverse_matrix(matrix: Vec<Vec<Float>>) -> Vec<Vec<Float>> {
+//     let rows = matrix.len();
+//     let cols = matrix[0].len();
+//     let flat_data: Vec<f64> = matrix.iter().flatten().cloned().collect();
+//     let dmatrix = nalgebra::DMatrix::from_row_slice(rows, cols, &flat_data);
+//     match dmatrix.try_inverse() {
+//         Some(inverse) => (0..inverse.nrows())
+//             .map(|i| inverse.row(i).iter().cloned().collect())
+//             .collect::<Vec<Vec<f64>>>(),
+//         None => {
+//             panic!("Singular matrix!")
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
