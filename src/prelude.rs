@@ -1,10 +1,15 @@
 pub use crate::BoundaryFace::{self, *};
-pub use crate::velocity_set::VelocitySet::{self, *};
 pub use crate::CollisionOperator::{self, *};
 pub use crate::NodeType::{self, *};
-pub use crate::functions;
-pub use crate::functions as f;
 pub use crate::momentum;
 pub use crate::momentum as m;
+pub use crate::momentum::io::InitialDensity;
+pub use crate::momentum::io::InitialVelocity;
+pub use crate::momentum::io::NodeTypes::{self, *};
+pub use crate::momentum::multiphase::Parameters as MultiphaseParameters;
 pub use crate::passive_scalar;
 pub use crate::passive_scalar as ps;
+pub use crate::passive_scalar::adsorption::AdsorptionModel::*;
+pub use crate::passive_scalar::adsorption::Parameters as AdsorptionParameters;
+pub use crate::passive_scalar::io::InitialScalarValue;
+pub use crate::velocity_set::VelocitySet::{self, *};
