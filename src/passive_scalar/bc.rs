@@ -2,12 +2,20 @@ use super::Node;
 use crate::prelude_crate::*;
 
 pub use BoundaryCondition::*;
+pub use InnerBoundaryCondition::*;
 
 #[derive(Debug, PartialEq)]
 pub enum BoundaryCondition {
     AntiBounceBack { scalar_value: Float },
     AntiBBNoFlux,
+    BBNoFlux,
     Periodic,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum InnerBoundaryCondition {
+    InnerAntiBounceBack = 0,
+    InnerBounceBack = 1,
 }
 
 impl Node {
@@ -41,12 +49,24 @@ impl Node {
         self.set_g(g);
     }
 
-    pub(super) fn compute_no_flux_bc(
+    pub(super) fn compute_anti_bb_no_flux_bc(
         &self,
         boundary_face: &BoundaryFace,
         velocity: Option<&[Float]>,
     ) {
         self.compute_anti_bounce_back_bc(boundary_face, &self.get_scalar_value(), velocity);
+    }
+
+    pub(super) fn compute_bb_no_flux_bc(&self, boundary_face: &BoundaryFace) {
+        let mut g = self.get_g();
+        let g_star = self.get_g_star();
+        let vel_set_params = self.get_velocity_set_parameters();
+        let q_faces = vel_set_params.get_q_faces(boundary_face);
+        q_faces.iter().for_each(|&i| {
+            let i_bar = vel_set_params.get_opposite_direction(i);
+            g[i_bar] = g_star[i];
+        });
+        self.set_g(g);
     }
 
     fn get_wall_velocity(
