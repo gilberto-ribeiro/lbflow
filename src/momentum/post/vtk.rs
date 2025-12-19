@@ -5,7 +5,9 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
-pub fn read_coordinates_file(dim: usize) -> (Vec<Vec<usize>>, Vec<Vec<Float>>, Vec<NodeType>) {
+pub(crate) fn read_coordinates_file(
+    dim: usize,
+) -> (Vec<Vec<usize>>, Vec<Vec<Float>>, Vec<NodeType>) {
     let path = Path::new(crate::io::DATA_PATH).join(crate::io::COORDINATES_FILE);
     let mut indexes: Vec<Vec<usize>> = Vec::new();
     let mut coordinates: Vec<Vec<Float>> = Vec::new();
@@ -202,7 +204,7 @@ fn write_momentum_vtk<P: AsRef<Path>>(
     Ok(())
 }
 
-pub fn post_vtk(config: Config, momentum_params: momentum::Parameters) {
+pub(crate) fn post_vtk(config: Config, momentum_params: momentum::Parameters) {
     let n = momentum_params.n.clone();
     let dim = n.len();
     let (_, coordinates, node_types) = read_coordinates_file(dim);
@@ -211,7 +213,7 @@ pub fn post_vtk(config: Config, momentum_params: momentum::Parameters) {
     momentum_vtk(&config, &conversion_factor, &n, &coordinates);
 }
 
-pub fn post_unify(config: Config, momentum_params: momentum::Parameters) {
+pub(crate) fn post_unify(config: Config, momentum_params: momentum::Parameters) {
     let keep = config.keep;
     let dim = momentum_params.n.len();
     momentum_unify(dim, keep);
@@ -237,7 +239,7 @@ fn compute_physical_velocity(
         .collect::<Vec<Float>>()
 }
 
-pub fn momentum_vtk(
+pub(crate) fn momentum_vtk(
     config: &Config,
     conversion_factor: &momentum::ConversionFactor,
     n: &[usize],
@@ -275,7 +277,7 @@ pub fn momentum_vtk(
         });
 }
 
-pub fn momentum_unify(dim: usize, keep: bool) {
+pub(crate) fn momentum_unify(dim: usize, keep: bool) {
     crate::io::collect_time_steps()
         .unwrap_or_else(|e| {
             eprintln!("Error: {e}");
@@ -300,7 +302,7 @@ pub fn momentum_unify(dim: usize, keep: bool) {
         });
 }
 
-pub fn node_type_vtk(
+pub(crate) fn node_type_vtk(
     config: &Config,
     n: &[usize],
     coordinates: &[Vec<Float>],

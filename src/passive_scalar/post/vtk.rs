@@ -96,7 +96,7 @@ fn passive_scalar_unify_vec(prefixes: &[String], keep: bool) {
     });
 }
 
-pub fn post_vtk(
+pub(crate) fn post_vtk(
     config: Config,
     momentum_params: momentum::Parameters,
     passive_scalar_params: passive_scalar::Parameters,
@@ -107,10 +107,10 @@ pub fn post_vtk(
     let conversion_factor = momentum::ConversionFactor::from(momentum_params);
     momentum::post::vtk::node_type_vtk(&config, &n, &coordinates, &node_types);
     momentum::post::vtk::momentum_vtk(&config, &conversion_factor, &n, &coordinates);
-    passive_scalar_vtk(&config, &passive_scalar_params.scalar_name);
+    passive_scalar_vtk(&config, passive_scalar_params.scalar_name);
 }
 
-pub fn post_unify(
+pub(crate) fn post_unify(
     config: Config,
     momentum_params: momentum::Parameters,
     passive_scalar_params: passive_scalar::Parameters,
@@ -118,10 +118,10 @@ pub fn post_unify(
     let keep = config.keep;
     let dim = momentum_params.n.len();
     momentum::post::vtk::momentum_unify(dim, keep);
-    passive_scalar_unify(&passive_scalar_params.scalar_name, keep);
+    passive_scalar_unify(passive_scalar_params.scalar_name, keep);
 }
 
-pub fn post_vtk_vec(
+pub(crate) fn post_vtk_vec(
     config: Config,
     momentum_params: momentum::Parameters,
     passive_scalar_params_vec: Vec<passive_scalar::Parameters>,
@@ -136,12 +136,12 @@ pub fn post_vtk_vec(
         &config,
         &passive_scalar_params_vec
             .iter()
-            .map(|passive_scalar_params| passive_scalar_params.scalar_name.clone())
+            .map(|passive_scalar_params| passive_scalar_params.scalar_name.to_string())
             .collect::<Vec<String>>(),
     );
 }
 
-pub fn post_unify_vec(
+pub(crate) fn post_unify_vec(
     config: Config,
     momentum_params: momentum::Parameters,
     passive_scalar_params_vec: Vec<passive_scalar::Parameters>,
@@ -152,7 +152,7 @@ pub fn post_unify_vec(
     passive_scalar_unify_vec(
         &passive_scalar_params_vec
             .iter()
-            .map(|passive_scalar_params| passive_scalar_params.scalar_name.clone())
+            .map(|passive_scalar_params| passive_scalar_params.scalar_name.to_string())
             .collect::<Vec<String>>(),
         keep,
     );
