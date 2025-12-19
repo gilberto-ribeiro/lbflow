@@ -1,3 +1,4 @@
+use crate::BoundaryFace;
 use crate::constants::Float;
 
 pub(super) const D: usize = 2;
@@ -159,6 +160,88 @@ pub(super) fn velocity_computation(density: Float, f: Vec<Float>) -> Vec<Float> 
         (1.0 / density) * (f[1] - f[3] + f[5] - f[6] - f[7] + f[8]),
         (1.0 / density) * (f[2] - f[4] + f[5] + f[6] - f[7] - f[8]),
     ]
+}
+
+pub(super) fn zou_he_bc_computation(
+    boundary_face: &BoundaryFace,
+    f: &[Float],
+    density: &Option<Float>,
+    velocity: &[Option<Float>],
+) -> Vec<Float> {
+    let velocity = &velocity[..D];
+    let mut f = f.to_owned();
+    match boundary_face {
+        BoundaryFace::West => match (density, velocity) {
+            (None, [Some(ux), Some(uy)]) => {
+                let rho = 1.0 / (1.0 - ux) * (f[0] + f[2] + f[4] + 2.0 * (f[3] + f[6] + f[7]));
+                f[1] = f[3] + (2.0 / 3.0) * rho * ux;
+                f[5] = f[7] - 0.5 * (f[2] - f[4]) + 0.5 * rho * uy + (1.0 / 6.0) * rho * ux;
+                f[8] = f[6] + 0.5 * (f[2] - f[4]) - 0.5 * rho * uy + (1.0 / 6.0) * rho * ux;
+            }
+            (Some(rho), [None, Some(uy)]) => {
+                let ux = 1.0 - 1.0 / rho * (f[0] + f[2] + f[4] + 2.0 * (f[3] + f[6] + f[7]));
+                f[1] = f[3] + (2.0 / 3.0) * rho * ux;
+                f[5] = f[7] - 0.5 * (f[2] - f[4]) + 0.5 * rho * uy + (1.0 / 6.0) * rho * ux;
+                f[8] = f[6] + 0.5 * (f[2] - f[4]) - 0.5 * rho * uy + (1.0 / 6.0) * rho * ux;
+            }
+            _ => {
+                panic!("{}", crate::momentum::bc::ZOUHE_ERROR_MESSAGE);
+            }
+        },
+        BoundaryFace::East => match (density, velocity) {
+            (None, [Some(ux), Some(uy)]) => {
+                let rho = 1.0 / (1.0 + ux) * (f[0] + f[2] + f[4] + 2.0 * (f[1] + f[5] + f[8]));
+                f[3] = f[1] - (2.0 / 3.0) * rho * ux;
+                f[7] = f[5] + 0.5 * (f[2] - f[4]) - 0.5 * rho * uy - (1.0 / 6.0) * rho * ux;
+                f[6] = f[8] - 0.5 * (f[2] - f[4]) + 0.5 * rho * uy - (1.0 / 6.0) * rho * ux;
+            }
+            (Some(rho), [None, Some(uy)]) => {
+                let ux = 1.0 / rho * (f[0] + f[2] + f[4] + 2.0 * (f[1] + f[5] + f[8])) - 1.0;
+                f[3] = f[1] - (2.0 / 3.0) * rho * ux;
+                f[7] = f[5] + 0.5 * (f[2] - f[4]) - 0.5 * rho * uy - (1.0 / 6.0) * rho * ux;
+                f[6] = f[8] - 0.5 * (f[2] - f[4]) + 0.5 * rho * uy - (1.0 / 6.0) * rho * ux;
+            }
+            _ => {
+                panic!("{}", crate::momentum::bc::ZOUHE_ERROR_MESSAGE);
+            }
+        },
+        BoundaryFace::South => match (density, velocity) {
+            (None, [Some(ux), Some(uy)]) => {
+                let rho = 1.0 / (1.0 - uy) * (f[0] + f[1] + f[3] + 2.0 * (f[4] + f[7] + f[8]));
+                f[2] = f[4] + (2.0 / 3.0) * rho * uy;
+                f[5] = f[7] - 0.5 * (f[1] - f[3]) + 0.5 * rho * ux + (1.0 / 6.0) * rho * uy;
+                f[6] = f[8] + 0.5 * (f[1] - f[3]) - 0.5 * rho * ux + (1.0 / 6.0) * rho * uy;
+            }
+            (Some(rho), [Some(ux), None]) => {
+                let uy = 1.0 - 1.0 / rho * (f[0] + f[1] + f[3] + 2.0 * (f[4] + f[7] + f[8]));
+                f[2] = f[4] + (2.0 / 3.0) * rho * uy;
+                f[5] = f[7] - 0.5 * (f[1] - f[3]) + 0.5 * rho * ux + (1.0 / 6.0) * rho * uy;
+                f[6] = f[8] + 0.5 * (f[1] - f[3]) - 0.5 * rho * ux + (1.0 / 6.0) * rho * uy;
+            }
+            _ => {
+                panic!("{}", crate::momentum::bc::ZOUHE_ERROR_MESSAGE);
+            }
+        },
+        BoundaryFace::North => match (density, velocity) {
+            (None, [Some(ux), Some(uy)]) => {
+                let rho = 1.0 / (1.0 + uy) * (f[0] + f[1] + f[3] + 2.0 * (f[2] + f[5] + f[6]));
+                f[4] = f[2] - (2.0 / 3.0) * rho * uy;
+                f[7] = f[5] + 0.5 * (f[1] - f[3]) - 0.5 * rho * ux - (1.0 / 6.0) * rho * uy;
+                f[8] = f[6] - 0.5 * (f[1] - f[3]) + 0.5 * rho * ux - (1.0 / 6.0) * rho * uy;
+            }
+            (Some(rho), [Some(ux), None]) => {
+                let uy = 1.0 / rho * (f[0] + f[1] + f[3] + 2.0 * (f[2] + f[5] + f[6])) - 1.0;
+                f[4] = f[2] - (2.0 / 3.0) * rho * uy;
+                f[7] = f[5] + 0.5 * (f[1] - f[3]) - 0.5 * rho * ux - (1.0 / 6.0) * rho * uy;
+                f[8] = f[6] - 0.5 * (f[1] - f[3]) + 0.5 * rho * ux - (1.0 / 6.0) * rho * uy;
+            }
+            _ => {
+                panic!("{}", crate::momentum::bc::ZOUHE_ERROR_MESSAGE);
+            }
+        },
+        _ => panic!("{}", crate::momentum::bc::ZOUHE_ERROR_MESSAGE),
+    }
+    f
 }
 
 pub(super) fn mrt_equilibrium_moments_computation(
