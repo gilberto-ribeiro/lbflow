@@ -1,5 +1,6 @@
+pub(crate) mod adsorption;
 pub mod bc;
-mod io;
+pub(crate) mod io;
 mod lattice;
 mod node;
 mod post;
@@ -7,16 +8,19 @@ mod post;
 use crate::cli;
 use crate::prelude_crate::*;
 use bc::BoundaryCondition;
+use bc::InnerBoundaryCondition;
 pub(crate) use lattice::Lattice;
 pub(crate) use node::Node;
 
-pub struct Parameters {
-    pub scalar_name: String,
+pub struct Parameters<'a> {
+    pub scalar_name: &'a str,
     pub collision_operator: CollisionOperator,
     pub source_value: Option<Box<dyn Fn(&Node) -> Float + Send + Sync>>,
-    pub initial_scalar_value: Vec<Float>,
+    pub initial_scalar_value: InitialScalarValue<'a>,
     pub velocity_set: VelocitySet,
     pub boundary_conditions: Vec<(BoundaryFace, BoundaryCondition)>,
+    pub inner_boundary_condition: InnerBoundaryCondition,
+    pub adsorption_parameters: Option<adsorption::Parameters>,
 }
 
 #[derive(Debug, Clone)]
