@@ -2,13 +2,14 @@ use super::Node;
 use super::Parameters;
 use super::Residuals;
 use super::bc::BoundaryCondition::{self, *};
+use super::bc::InnerBoundaryCondition::{self, *};
 use crate::prelude_crate::*;
 use crate::{FACES_2D, FACES_3D};
 use rayon::prelude::*;
 
 #[derive(Debug)]
-pub struct Lattice {
-    scalar_name: String,
+pub struct Lattice<'a> {
+    scalar_name: &'a str,
     momentum_lattice: Arc<momentum::Lattice>,
     nodes: Vec<Arc<Node>>,
     collision_operator: Arc<CollisionOperator>,
@@ -17,13 +18,12 @@ pub struct Lattice {
     boundary_nodes: HashMap<BoundaryFace, Vec<Arc<Node>>>,
     bounce_back_nodes: Vec<Arc<Node>>,
     boundary_conditions: HashMap<BoundaryFace, BoundaryCondition>,
+    inner_boundary_condition: InnerBoundaryCondition,
     residuals: RwLock<Residuals>,
 }
 
-impl Lattice {
-    pub(super) fn new(params: Parameters, momentum_lattice: Arc<momentum::Lattice>) -> Self {
-        let initial_scalar_value = params.initial_scalar_value;
-
+impl<'a> Lattice<'a> {
+    pub(super) fn new(params: Parameters<'a>, momentum_lattice: Arc<momentum::Lattice>) -> Self {
         let source_value = Arc::new(params.source_value);
         let collision_operator = Arc::new(params.collision_operator);
         let velocity_set = params.velocity_set;
@@ -34,6 +34,15 @@ impl Lattice {
         let c = &(velocity_set_parameters.c);
         let number_of_nodes = momentum_lattice.get_number_of_nodes();
 
+        let n = momentum_lattice.get_n();
+        let initial_scalar_value = &params.initial_scalar_value.generate(n, params.scalar_name);
+
+        let adsorption_params = Arc::new(params.adsorption_parameters);
+        let node_parameters = Arc::new(super::node::Parameters::new(
+            Arc::clone(&velocity_set_parameters),
+            adsorption_params,
+        ));
+
         let nodes = momentum_lattice
             .get_nodes()
             .iter()
@@ -43,7 +52,7 @@ impl Lattice {
                 Arc::new(Node::new(
                     initial_scalar_value,
                     Arc::clone(&source_value),
-                    Arc::clone(&velocity_set_parameters),
+                    Arc::clone(&node_parameters),
                     Arc::clone(node),
                 ))
             })
@@ -54,7 +63,7 @@ impl Lattice {
             .iter()
             .zip(nodes.iter())
             .for_each(|(m_node, ps_node)| {
-                m_node.append_scalar_node(params.scalar_name.clone(), Arc::clone(ps_node));
+                m_node.append_scalar_node(params.scalar_name, Arc::clone(ps_node));
             });
 
         let n = momentum_lattice.get_n();
@@ -154,11 +163,12 @@ impl Lattice {
             if !bounce_back_neighbor_nodes.is_empty() {
                 node.set_bounce_back_neighbor_nodes(bounce_back_neighbor_nodes);
                 bounce_back_nodes.push(Arc::clone(node));
+                node.change_bounce_back_node_status();
             }
         });
 
         Lattice {
-            scalar_name: params.scalar_name.clone(),
+            scalar_name: params.scalar_name,
             momentum_lattice,
             nodes,
             collision_operator: Arc::clone(&collision_operator),
@@ -166,13 +176,14 @@ impl Lattice {
             fluid_nodes,
             boundary_nodes,
             boundary_conditions: HashMap::from_iter(params.boundary_conditions),
+            inner_boundary_condition: params.inner_boundary_condition,
             bounce_back_nodes,
             residuals: RwLock::new(Residuals::new(0.0)),
         }
     }
 }
 
-impl Lattice {
+impl<'a> Lattice<'a> {
     pub(super) fn get_momentum_lattice(&self) -> &Arc<momentum::Lattice> {
         &self.momentum_lattice
     }
@@ -213,7 +224,7 @@ impl Lattice {
     }
 
     pub(super) fn get_scalar_name(&self) -> &str {
-        &self.scalar_name
+        self.scalar_name
     }
 
     fn get_d(&self) -> &usize {
@@ -225,7 +236,7 @@ impl Lattice {
     }
 }
 
-impl Lattice {
+impl<'a> Lattice<'a> {
     pub(super) fn initialize_nodes(&self) {
         self.get_fluid_nodes().par_iter().for_each(|node| {
             node.compute_equilibrium();
@@ -271,6 +282,19 @@ impl Lattice {
         });
     }
 
+    fn inner_bounce_back_step(&self) {
+        self.get_bounce_back_nodes().par_iter().for_each(|node| {
+            node.compute_inner_bounce_back();
+        });
+    }
+
+    fn inner_boundary_condition_step(&self) {
+        match self.inner_boundary_condition {
+            InnerAntiBounceBack => self.inner_anti_bounce_back_step(),
+            InnerBounceBack => self.inner_bounce_back_step(),
+        }
+    }
+
     fn boundary_conditions_step(&self) {
         self.get_boundary_nodes()
             .iter()
@@ -285,6 +309,13 @@ impl Lattice {
                     momentum::bc::BounceBack { velocity, .. } => Some(velocity.to_vec()),
                     momentum::bc::AntiBounceBack { .. } => None,
                     momentum::bc::Periodic => None,
+                    momentum::bc::ZouHe { velocity, .. } => {
+                        if velocity.iter().all(|v| v.is_some()) {
+                            Some(velocity.iter().map(|v| v.unwrap()).collect::<Vec<Float>>())
+                        } else {
+                            None
+                        }
+                    }
                 };
                 match boundary_condition {
                     AntiBounceBack { scalar_value } => {
@@ -298,7 +329,12 @@ impl Lattice {
                     }
                     AntiBBNoFlux => {
                         nodes.par_iter().for_each(|node| {
-                            node.compute_no_flux_bc(boundary_face, velocity.as_deref());
+                            node.compute_anti_bb_no_flux_bc(boundary_face, velocity.as_deref());
+                        });
+                    }
+                    BBNoFlux => {
+                        nodes.par_iter().for_each(|node| {
+                            node.compute_bb_no_flux_bc(boundary_face);
                         });
                     }
                     Periodic => {}
@@ -354,19 +390,19 @@ impl Lattice {
         self.equilibrium_step();
         self.collision_step();
         self.streaming_step();
-        self.inner_anti_bounce_back_step();
+        self.inner_boundary_condition_step();
         self.boundary_conditions_step();
     }
 }
 
-pub(super) struct LatticeVec {
-    passive_scalar_lattices: Vec<Lattice>,
+pub(super) struct LatticeVec<'a> {
+    passive_scalar_lattices: Vec<Lattice<'a>>,
     momentum_lattice: Arc<momentum::Lattice>,
 }
 
-impl LatticeVec {
+impl<'a> LatticeVec<'a> {
     pub(super) fn new(
-        params_vec: Vec<passive_scalar::Parameters>,
+        params_vec: Vec<passive_scalar::Parameters<'a>>,
         momentum_lattice: Arc<momentum::Lattice>,
     ) -> Self {
         let passive_scalar_lattices = params_vec
@@ -380,17 +416,17 @@ impl LatticeVec {
     }
 }
 
-impl LatticeVec {
+impl<'a> LatticeVec<'a> {
     pub(super) fn get_momentum_lattice(&self) -> &Arc<momentum::Lattice> {
         &self.momentum_lattice
     }
 
-    pub(super) fn get_passive_scalar_lattices(&self) -> &Vec<Lattice> {
+    pub(super) fn get_passive_scalar_lattices(&self) -> &Vec<Lattice<'a>> {
         &self.passive_scalar_lattices
     }
 }
 
-impl LatticeVec {
+impl<'a> LatticeVec<'a> {
     pub(super) fn initialize_nodes(&self) {
         self.passive_scalar_lattices.iter().for_each(|lattice| {
             lattice.initialize_nodes();
