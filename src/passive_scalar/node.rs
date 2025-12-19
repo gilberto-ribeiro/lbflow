@@ -1,5 +1,39 @@
+use super::adsorption;
 use crate::prelude_crate::*;
 use std::fmt::{self, Debug};
+
+pub(super) struct Parameters {
+    velocity_set_params: Arc<velocity_set::Parameters>,
+    adsorption_params: Arc<Option<adsorption::Parameters>>,
+}
+
+impl Default for Parameters {
+    fn default() -> Self {
+        Parameters {
+            velocity_set_params: Arc::new(velocity_set::Parameters::default()),
+            adsorption_params: Arc::new(None),
+        }
+    }
+}
+
+impl Parameters {
+    pub(super) fn new(
+        velocity_set_params: Arc<velocity_set::Parameters>,
+        adsorption_params: Arc<Option<adsorption::Parameters>>,
+    ) -> Self {
+        Parameters {
+            velocity_set_params,
+            adsorption_params,
+        }
+    }
+
+    pub(super) fn _test_default(dim: usize) -> Self {
+        Parameters {
+            velocity_set_params: Arc::new(velocity_set::Parameters::test_default(dim)),
+            adsorption_params: Arc::new(None),
+        }
+    }
+}
 
 // #[derive(Debug)]
 pub struct Node {
@@ -8,10 +42,13 @@ pub struct Node {
     g: RwLock<Vec<Float>>,
     g_eq: RwLock<Vec<Float>>,
     g_star: RwLock<Vec<Float>>,
+    pub(super) q_ads: RwLock<Option<Float>>,
+    pub(super) adsorption_parameters: Arc<Option<adsorption::Parameters>>,
     source_value: Arc<Option<Box<dyn Fn(&Node) -> Float + Send + Sync>>>,
     velocity_set_parameters: Arc<velocity_set::Parameters>,
     neighbor_nodes: RwLock<Option<HashMap<usize, Arc<Node>>>>,
     bounce_back_neighbor_nodes: RwLock<Option<HashMap<usize, Arc<Node>>>>,
+    bounce_back_node_status: RwLock<bool>,
     shallow_node: ShallowNode,
 }
 
@@ -32,20 +69,32 @@ impl Node {
     pub(super) fn new(
         scalar_value: Float,
         source_value: Arc<Option<Box<dyn Fn(&Node) -> Float + Send + Sync>>>,
-        velocity_set_parameters: Arc<velocity_set::Parameters>,
+        parameters: Arc<Parameters>,
         momentum_node: Arc<momentum::Node>,
     ) -> Self {
-        let q = velocity_set_parameters.q;
+        let q = parameters.velocity_set_params.q;
+        let q_ads_value = if let Some(ads_params) = parameters.adsorption_params.as_ref() {
+            if momentum_node.is_bounce_back_node() {
+                Some(ads_params.get_initial_q_ads())
+            } else {
+                Some(0.0)
+            }
+        } else {
+            None
+        };
         Node {
             momentum_node,
             scalar_value: RwLock::new(scalar_value),
             g: RwLock::new(vec![0.0; q]),
             g_eq: RwLock::new(vec![0.0; q]),
             g_star: RwLock::new(vec![0.0; q]),
+            q_ads: RwLock::new(q_ads_value),
             source_value,
-            velocity_set_parameters,
+            velocity_set_parameters: Arc::clone(&parameters.velocity_set_params),
+            adsorption_parameters: Arc::clone(&parameters.adsorption_params),
             neighbor_nodes: RwLock::new(None),
             bounce_back_neighbor_nodes: RwLock::new(None),
+            bounce_back_node_status: RwLock::new(false),
             shallow_node: ShallowNode::new(scalar_value),
         }
     }
@@ -90,6 +139,15 @@ impl Node {
     pub(super) fn set_g_star(&self, g_star: Vec<Float>) {
         let mut g_star_guard = self.g_star.write().unwrap();
         *g_star_guard = g_star;
+    }
+
+    pub fn is_bounce_back_node(&self) -> bool {
+        *self.bounce_back_node_status.read().unwrap()
+    }
+
+    pub(super) fn change_bounce_back_node_status(&self) {
+        let mut status_guard = self.bounce_back_node_status.write().unwrap();
+        *status_guard = !*status_guard;
     }
 
     pub(super) fn get_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
@@ -139,7 +197,13 @@ impl Node {
     }
 
     fn get_source_value(&self) -> Option<Float> {
-        self.source_value.as_ref().as_ref().map(|f| f(self))
+        let original_source_value = self.source_value.as_ref().as_ref().map(|f| f(self));
+        let adsorption_source_value = self.compute_adsorption_source_value();
+        match (original_source_value, adsorption_source_value) {
+            (Some(v1), Some(v2)) => Some(v1 + v2),
+            (Some(v), None) | (None, Some(v)) => Some(v),
+            (None, None) => None,
+        }
     }
 }
 
@@ -232,6 +296,19 @@ impl Node {
                 let i_bar = vel_set_params.get_opposite_direction(i);
                 let wall_scalar_value = node.get_scalar_value();
                 g[i_bar] = -g_star[i] + 2.0 * w[i] * wall_scalar_value;
+            });
+        self.set_g(g);
+    }
+
+    pub(super) fn compute_inner_bounce_back(&self) {
+        let mut g = self.get_g();
+        let g_star = self.get_g_star();
+        let vel_set_params = self.get_velocity_set_parameters();
+        self.get_bounce_back_neighbor_nodes()
+            .iter()
+            .for_each(|(&i, _)| {
+                let i_bar = vel_set_params.get_opposite_direction(i);
+                g[i_bar] = g_star[i];
             });
         self.set_g(g);
     }
