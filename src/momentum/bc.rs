@@ -3,6 +3,9 @@ use crate::prelude_crate::*;
 
 pub use BoundaryCondition::*;
 
+pub(crate) const ZOUHE_ERROR_MESSAGE: &str =
+    "Error: Wrong input of Zou & He (1997) boundary conditions.";
+
 #[derive(Debug, PartialEq)]
 pub enum BoundaryCondition {
     NoSlip,
@@ -13,11 +16,15 @@ pub enum BoundaryCondition {
     AntiBounceBack {
         density: Float,
     },
+    ZouHe {
+        density: Option<Float>,
+        velocity: Vec<Option<Float>>,
+    },
     Periodic,
 }
 
 impl Node {
-    pub(crate) fn compute_bounce_back_bc(
+    pub(super) fn compute_bounce_back_bc(
         &self,
         boundary_face: &BoundaryFace,
         density: &Float,
@@ -41,7 +48,7 @@ impl Node {
         self.set_f(f);
     }
 
-    pub(crate) fn compute_anti_bounce_back_bc(
+    pub(super) fn compute_anti_bounce_back_bc(
         &self,
         boundary_face: &BoundaryFace,
         density: &Float,
@@ -78,7 +85,7 @@ impl Node {
         self.set_f(f);
     }
 
-    pub(crate) fn compute_no_slip_bc(&self, boundary_face: &BoundaryFace) {
+    pub(super) fn compute_no_slip_bc(&self, boundary_face: &BoundaryFace) {
         let mut f = self.get_f();
         let f_star = self.get_f_star();
         let vel_set_params = self.get_velocity_set_parameters();
@@ -87,6 +94,26 @@ impl Node {
             let i_bar = vel_set_params.get_opposite_direction(i);
             f[i_bar] = f_star[i];
         });
+        self.set_f(f);
+    }
+
+    pub(super) fn compute_zou_he_bc(
+        &self,
+        boundary_face: &BoundaryFace,
+        density: &Option<Float>,
+        velocity: &[Option<Float>],
+    ) {
+        let f = self.get_f();
+        let vel_set_params = self.get_velocity_set_parameters();
+        let f = vel_set_params
+            .zou_he_bc_computation
+            .as_ref()
+            .expect("Zou & He BC computation function not defined.")(
+            boundary_face,
+            &f,
+            density,
+            velocity,
+        );
         self.set_f(f);
     }
 }
