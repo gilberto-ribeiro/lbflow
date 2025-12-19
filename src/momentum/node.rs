@@ -43,9 +43,9 @@ pub struct Node {
     f: RwLock<Vec<Float>>,
     f_eq: RwLock<Vec<Float>>,
     f_star: RwLock<Vec<Float>>,
-    phi: RwLock<Option<Float>>,
+    pub(super) phi: RwLock<Option<Float>>,
     force: Arc<Option<Box<dyn Fn(&Node) -> Vec<Float> + Send + Sync>>>,
-    multiphase_parameters: Arc<Option<multiphase::Parameters>>,
+    pub(super) multiphase_parameters: Arc<Option<multiphase::Parameters>>,
     node_type: NodeType,
     index: Vec<usize>,
     coordinates: Vec<Float>,
@@ -229,15 +229,6 @@ impl Node {
         *f_star_guard = f_star;
     }
 
-    fn get_phi(&self) -> Option<Float> {
-        *self.phi.read().unwrap()
-    }
-
-    fn set_phi(&self, phi: Float) {
-        let mut phi_guard = self.phi.write().unwrap();
-        *phi_guard = Some(phi);
-    }
-
     pub fn is_bounce_back_node(&self) -> bool {
         *self.bounce_back_node_status.read().unwrap()
     }
@@ -325,20 +316,16 @@ impl Node {
             .expect("Scalar node not found")
     }
 
-    pub(crate) fn append_scalar_node(&self, scalar_name: String, node: Arc<passive_scalar::Node>) {
+    pub(crate) fn append_scalar_node(&self, scalar_name: &str, node: Arc<passive_scalar::Node>) {
         self.scalar_nodes
             .write()
             .unwrap()
             .get_or_insert_with(HashMap::new)
-            .insert(scalar_name, node);
+            .insert(scalar_name.to_string(), node);
     }
 
     fn get_shallow_node(&self) -> &ShallowNode {
         &self.shallow_node
-    }
-
-    fn get_multiphase_parameters(&self) -> &Option<multiphase::Parameters> {
-        &self.multiphase_parameters
     }
 
     pub(super) fn get_velocity_set_parameters(&self) -> &Arc<velocity_set::Parameters> {
@@ -433,7 +420,7 @@ impl Node {
             tau,
             self.get_velocity_set_parameters(),
         );
-        if let Some(force) = self.get_force().as_ref().map(|f_x| f_x.as_slice()) {
+        if let Some(force) = self.get_force().as_deref() {
             let source_term = kernel::momentum_source_term(
                 &self.get_velocity(),
                 force,
@@ -519,53 +506,6 @@ impl Node {
         let velocity = self.get_velocity();
         self.get_shallow_node().set_density(density);
         self.get_shallow_node().set_velocity(velocity);
-    }
-
-    pub(super) fn compute_phi(&self) {
-        if self.get_multiphase_parameters().is_some() {
-            let density = self.get_density();
-            let phi = kernel::pseudo_potential(density);
-            self.set_phi(phi);
-        }
-    }
-
-    fn compute_shan_chen_force(&self) -> Option<Vec<Float>> {
-        if let Some(mp_params) = self.get_multiphase_parameters() {
-            let g_function = mp_params.get_g_function();
-            let wall_phi = mp_params.get_wall_phi();
-            let node_phi = self.get_phi().unwrap();
-            let vs_params = self.get_velocity_set_parameters();
-            let c = vs_params.get_c();
-            let w = vs_params.get_w();
-            let d = vs_params.get_d();
-            let q = vs_params.get_q();
-            let mut neighbor_nodes_phi = vec![0.0; q];
-            self.get_neighbor_nodes()
-                .iter()
-                .for_each(|(&i, neighbor_node)| {
-                    neighbor_nodes_phi[i] = match neighbor_node.get_node_type() {
-                        Fluid => neighbor_node.get_phi().unwrap(),
-                        Solid => wall_phi,
-                    };
-                });
-            let force = (0..d)
-                .map(|x| {
-                    -g_function
-                        * node_phi
-                        * (0..q)
-                            .map(|i| {
-                                let w_i = w[i];
-                                let phi_i = neighbor_nodes_phi[i];
-                                let c_ix = c[i][x] as Float;
-                                w_i * c_ix * phi_i
-                            })
-                            .sum::<Float>()
-                })
-                .collect::<Vec<Float>>();
-            Some(force)
-        } else {
-            None
-        }
     }
 }
 
