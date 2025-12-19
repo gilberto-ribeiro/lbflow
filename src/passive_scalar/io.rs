@@ -6,8 +6,8 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 
-impl Lattice {
-    pub fn get_residuals_info(&self) -> crate::io::ResidualsInfo {
+impl<'a> Lattice<'a> {
+    pub(super) fn get_residuals_info(&self) -> crate::io::ResidualsInfo {
         let info = self.get_momentum_lattice().get_residuals_info();
         crate::io::ResidualsInfo {
             print_header: format!(
@@ -30,14 +30,17 @@ impl Lattice {
         }
     }
 
-    pub fn write_data(&self) {
+    pub(super) fn write_data(&self) {
         match self
             .get_momentum_lattice()
             .get_config()
             .get_write_data_mode()
         {
             WriteDataMode::Frequency(n) => {
-                if self.get_momentum_lattice().get_time_step() % n == 0
+                if self
+                    .get_momentum_lattice()
+                    .get_time_step()
+                    .is_multiple_of(*n)
                     || self.get_momentum_lattice().get_time_step() == 0
                 {
                     println!();
@@ -76,13 +79,13 @@ impl Lattice {
                 .yellow()
                 .bold()
         );
-        if let Err(e) = self.write_scalar(&step_path) {
+        if let Err(e) = self.write_scalar_value(&step_path) {
             eprintln!("Error while writing the scalar file: {e}.");
             std::process::exit(1);
         };
     }
 
-    fn write_scalar<P>(&self, step_path: P) -> LbResult<()>
+    fn write_scalar_value<P>(&self, step_path: P) -> LbResult<()>
     where
         P: AsRef<Path>,
     {
@@ -120,8 +123,8 @@ impl Lattice {
     }
 }
 
-impl passive_scalar::lattice::LatticeVec {
-    pub fn get_residuals_info(&self) -> crate::io::ResidualsInfo {
+impl<'a> passive_scalar::lattice::LatticeVec<'a> {
+    pub(super) fn get_residuals_info(&self) -> crate::io::ResidualsInfo {
         let momentum_info = self.get_momentum_lattice().get_residuals_info();
         let passive_scalar_print_header = self
             .get_passive_scalar_lattices()
@@ -159,6 +162,25 @@ impl passive_scalar::lattice::LatticeVec {
             ),
             write_line: format!("{}{}", momentum_info.write_line, passive_scalar_write_line),
             time_step: momentum_info.time_step,
+        }
+    }
+}
+
+pub enum InitialScalarValue<'a> {
+    Uniform(Float),
+    FromFile(&'a str),
+    FromTimeStep(usize),
+}
+
+impl<'a> InitialScalarValue<'a> {
+    pub(crate) fn generate(&self, n: &[usize], scalar_name: &str) -> Vec<Float> {
+        match self {
+            InitialScalarValue::Uniform(value) => crate::io::generate_uniform_scalars(*value, n),
+            InitialScalarValue::FromFile(path) => crate::io::generate_scalars_from_file(path),
+            InitialScalarValue::FromTimeStep(time_step) => {
+                let filename = format!("{}.csv", scalar_name);
+                crate::io::generate_scalars_from_time_step(*time_step, &filename)
+            }
         }
     }
 }

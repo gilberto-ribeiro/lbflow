@@ -10,7 +10,7 @@ use std::path::Path;
 use std::process;
 
 impl Lattice {
-    pub fn get_residuals_info(&self) -> crate::io::ResidualsInfo {
+    pub(crate) fn get_residuals_info(&self) -> crate::io::ResidualsInfo {
         crate::io::ResidualsInfo {
             print_header: self.print_residuals_header(),
             print_line: self.print_residuals_line(),
@@ -71,10 +71,10 @@ impl Lattice {
         write_line
     }
 
-    pub fn write_data(&self) {
+    pub(crate) fn write_data(&self) {
         match self.get_config().get_write_data_mode() {
             WriteDataMode::Frequency(n) => {
-                if self.get_time_step() % n == 0 || self.get_time_step() == 0 {
+                if self.get_time_step().is_multiple_of(*n) || self.get_time_step() == 0 {
                     println!();
                     self.write_data_from_steps();
                 }
@@ -200,7 +200,7 @@ impl Lattice {
         Ok(())
     }
 
-    pub fn write_coordinates(&self) -> LbResult<()> {
+    pub(crate) fn write_coordinates(&self) -> LbResult<()> {
         let data_path = Path::new(crate::io::DATA_PATH);
         let path = data_path.join(crate::io::COORDINATES_FILE);
         println!("Writing {}.\n", crate::io::COORDINATES_FILE.yellow().bold());
@@ -232,8 +232,11 @@ impl Lattice {
         Ok(())
     }
 
-    pub fn write_post_processing(&self, post_function: &super::post::PostFunction) -> LbResult<()> {
-        if self.get_time_step() % post_function.interval == 0 {
+    pub(super) fn write_post_processing(
+        &self,
+        post_function: &super::post::PostFunction,
+    ) -> LbResult<()> {
+        if self.get_time_step().is_multiple_of(post_function.interval) {
             let post_results = &(post_function.function)(self);
             let post_processing_path = Path::new(crate::io::POST_PROCESSING_PATH);
             let path = post_processing_path.join(&post_function.file_name);
@@ -342,7 +345,7 @@ set terminal pop"#,
     Ok(())
 }
 
-pub fn case_setup(momentum_parameters: &super::Parameters) {
+pub(crate) fn case_setup(momentum_parameters: &super::Parameters) {
     crate::io::create_case_directories().unwrap_or_else(|e| {
         eprintln! {"Error while creating the case directories: {e}"};
         std::process::exit(1);
@@ -359,4 +362,59 @@ pub fn case_setup(momentum_parameters: &super::Parameters) {
         eprintln! {"Error while creating the gnuplot script: {e}"};
         std::process::exit(1);
     });
+}
+
+pub enum InitialDensity<'a> {
+    Uniform(Float),
+    FromTimeStep(usize),
+    FromFile(&'a str),
+}
+
+impl<'a> InitialDensity<'a> {
+    pub(crate) fn generate(&self, n: &[usize]) -> Vec<Float> {
+        match self {
+            InitialDensity::Uniform(value) => crate::io::generate_uniform_scalars(*value, n),
+            InitialDensity::FromFile(path) => crate::io::generate_scalars_from_file(path),
+            InitialDensity::FromTimeStep(time_step) => {
+                crate::io::generate_scalars_from_time_step(*time_step, crate::io::DENSITY_FILE)
+            }
+        }
+    }
+}
+
+pub enum InitialVelocity<'a> {
+    Uniform(Vec<Float>),
+    FromTimeStep(usize),
+    FromFile(&'a str),
+}
+
+impl<'a> InitialVelocity<'a> {
+    pub(crate) fn generate(&self, n: &[usize]) -> Vec<Vec<Float>> {
+        match self {
+            InitialVelocity::Uniform(value) => {
+                crate::io::generate_uniform_vectors(value.to_vec(), n)
+            }
+            InitialVelocity::FromFile(path) => crate::io::generate_vectors_from_file(path),
+            InitialVelocity::FromTimeStep(time_step) => {
+                crate::io::generate_vectors_from_time_step(*time_step, crate::io::VELOCITY_FILE)
+            }
+        }
+    }
+}
+
+pub enum NodeTypes {
+    OnlyFluidNodes,
+    FromBounceBackMapFile,
+}
+
+impl NodeTypes {
+    pub(crate) fn generate(&self, n: &[usize]) -> Vec<NodeType> {
+        match self {
+            NodeTypes::FromBounceBackMapFile => crate::io::read_bounce_back_map(),
+            NodeTypes::OnlyFluidNodes => {
+                let num_nodes = n.iter().product();
+                vec![NodeType::Fluid; num_nodes]
+            }
+        }
+    }
 }
