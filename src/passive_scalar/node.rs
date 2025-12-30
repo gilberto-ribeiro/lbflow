@@ -1,4 +1,5 @@
 use super::adsorption;
+use crate::NodeLike;
 use crate::prelude_crate::*;
 use std::fmt::{self, Debug};
 
@@ -100,6 +101,125 @@ impl Node {
     }
 }
 
+impl NodeLike for Node {
+    fn get_f(&self) -> Vec<Float> {
+        self.get_g()
+    }
+
+    fn set_f(&self, f: Vec<Float>) {
+        self.set_g(f);
+    }
+
+    fn get_f_eq(&self) -> Vec<Float> {
+        self.get_g_eq()
+    }
+
+    fn set_f_eq(&self, f_eq: Vec<Float>) {
+        self.set_g_eq(f_eq);
+    }
+
+    fn get_f_star(&self) -> Vec<Float> {
+        self.get_g_star()
+    }
+
+    fn set_f_star(&self, f_star: Vec<Float>) {
+        self.set_g_star(f_star);
+    }
+
+    fn get_value(&self) -> Float {
+        self.get_scalar_value()
+    }
+
+    fn get_velocity(&self) -> Vec<Float> {
+        self.get_momentum_node().get_velocity()
+    }
+
+    fn get_vel_set_params(&self) -> &Arc<velocity_set::Parameters> {
+        &self.velocity_set_parameters
+    }
+
+    fn get_node_type(&self) -> &NodeType {
+        self.get_momentum_node().get_node_type()
+    }
+
+    fn get_index(&self) -> &Vec<usize> {
+        self.get_momentum_node().get_index()
+    }
+
+    fn get_coordinates(&self) -> &Vec<Float> {
+        self.get_momentum_node().get_coordinates()
+    }
+
+    fn get_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
+        self.neighbor_nodes
+            .read()
+            .unwrap()
+            .as_ref()
+            .cloned()
+            .unwrap()
+    }
+
+    fn set_neighbor_nodes(&self, neighbor_nodes: HashMap<usize, Arc<Node>>) {
+        let mut neighbor_nodes_guard = self.neighbor_nodes.write().unwrap();
+        *neighbor_nodes_guard = Some(neighbor_nodes);
+    }
+
+    fn get_bounce_back_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
+        self.bounce_back_neighbor_nodes
+            .read()
+            .unwrap()
+            .as_ref()
+            .cloned()
+            .unwrap()
+    }
+
+    fn set_bounce_back_neighbor_nodes(
+        &self,
+        bounce_back_neighbor_nodes: HashMap<usize, Arc<Node>>,
+    ) {
+        let mut bounce_back_neighbor_nodes_guard = self.bounce_back_neighbor_nodes.write().unwrap();
+        *bounce_back_neighbor_nodes_guard = Some(bounce_back_neighbor_nodes);
+    }
+
+    fn is_bounce_back_node(&self) -> bool {
+        *self.bounce_back_node_status.read().unwrap()
+    }
+
+    fn change_bounce_back_node_status(&self) {
+        let mut status_guard = self.bounce_back_node_status.write().unwrap();
+        *status_guard = !*status_guard;
+    }
+
+    fn get_scalar_nodes(&self) -> HashMap<String, Arc<passive_scalar::Node>> {
+        self.get_momentum_node().get_scalar_nodes()
+    }
+
+    fn compute_bgk_collision(&self, tau_g: Float) {
+        let mut g_star = kernel::bgk_collision(
+            &self.get_g(),
+            &self.get_g_eq(),
+            tau_g,
+            self.get_vel_set_params(),
+        );
+        if let Some(source_value) = self.get_source_value() {
+            let source_term =
+                kernel::passive_scalar_source_term(source_value, tau_g, self.get_vel_set_params());
+            g_star
+                .iter_mut()
+                .zip(source_term.iter())
+                .for_each(|(g_star_i, source_term_i)| {
+                    *g_star_i += *source_term_i;
+                });
+        }
+        self.set_g_star(g_star);
+    }
+
+    fn update_shallow_node(&self) {
+        let scalar_value = self.get_scalar_value();
+        self.get_shallow_node().set_scalar_value(scalar_value);
+    }
+}
+
 impl Node {
     pub fn get_momentum_node(&self) -> &Arc<momentum::Node> {
         &self.momentum_node
@@ -120,7 +240,7 @@ impl Node {
 
     pub(super) fn set_g(&self, g: Vec<Float>) {
         let mut g_guard = self.g.write().unwrap();
-        *g_guard = g;
+        *g_guard = g.to_vec();
     }
 
     pub(super) fn get_g_eq(&self) -> Vec<Float> {
@@ -129,7 +249,7 @@ impl Node {
 
     pub(super) fn set_g_eq(&self, g_eq: Vec<Float>) {
         let mut g_eq_guard = self.g_eq.write().unwrap();
-        *g_eq_guard = g_eq;
+        *g_eq_guard = g_eq.to_vec();
     }
 
     pub(super) fn get_g_star(&self) -> Vec<Float> {
@@ -138,62 +258,7 @@ impl Node {
 
     pub(super) fn set_g_star(&self, g_star: Vec<Float>) {
         let mut g_star_guard = self.g_star.write().unwrap();
-        *g_star_guard = g_star;
-    }
-
-    pub fn is_bounce_back_node(&self) -> bool {
-        *self.bounce_back_node_status.read().unwrap()
-    }
-
-    pub(super) fn change_bounce_back_node_status(&self) {
-        let mut status_guard = self.bounce_back_node_status.write().unwrap();
-        *status_guard = !*status_guard;
-    }
-
-    pub(super) fn get_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
-        self.neighbor_nodes
-            .read()
-            .unwrap()
-            .as_ref()
-            .cloned()
-            .unwrap()
-    }
-
-    pub(super) fn set_neighbor_nodes(&self, neighbor_nodes: HashMap<usize, Arc<Node>>) {
-        let mut neighbor_nodes_guard = self.neighbor_nodes.write().unwrap();
-        *neighbor_nodes_guard = Some(neighbor_nodes);
-    }
-
-    fn get_bounce_back_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
-        self.bounce_back_neighbor_nodes
-            .read()
-            .unwrap()
-            .as_ref()
-            .cloned()
-            .unwrap()
-    }
-
-    pub(super) fn set_bounce_back_neighbor_nodes(
-        &self,
-        bounce_back_neighbor_nodes: HashMap<usize, Arc<Node>>,
-    ) {
-        let mut bounce_back_neighbor_nodes_guard = self.bounce_back_neighbor_nodes.write().unwrap();
-        *bounce_back_neighbor_nodes_guard = Some(bounce_back_neighbor_nodes);
-    }
-
-    pub(super) fn get_neighbor_node(&self, i: usize) -> Arc<Node> {
-        self.get_neighbor_nodes()
-            .get(&i)
-            .cloned()
-            .expect("Neighbor node not found")
-    }
-
-    pub fn get_scalar_node(&self, scalar_name: String) -> Arc<passive_scalar::Node> {
-        self.get_momentum_node().get_scalar_node(scalar_name)
-    }
-
-    fn get_shallow_node(&self) -> &ShallowNode {
-        &self.shallow_node
+        *g_star_guard = g_star.to_vec();
     }
 
     fn get_source_value(&self) -> Option<Float> {
@@ -205,9 +270,11 @@ impl Node {
             (None, None) => None,
         }
     }
-}
 
-impl Node {
+    fn get_shallow_node(&self) -> &ShallowNode {
+        &self.shallow_node
+    }
+
     pub(super) fn compute_scalar_value(&self) {
         let g = self.get_g();
         let mut scalar_value = g.iter().sum::<Float>();
@@ -217,78 +284,10 @@ impl Node {
         self.set_scalar_value(scalar_value);
     }
 
-    pub(super) fn compute_equilibrium(&self) {
-        let g_eq = kernel::equilibrium(
-            self.get_scalar_value(),
-            &self.get_momentum_node().get_velocity(),
-            self.get_velocity_set_parameters(),
-        );
-        self.set_g_eq(g_eq);
-    }
-
-    pub(super) fn compute_bgk_collision(&self, tau_g: Float) {
-        let mut g_star = kernel::bgk_collision(
-            &self.get_g(),
-            &self.get_g_eq(),
-            tau_g,
-            self.get_velocity_set_parameters(),
-        );
-        if let Some(source_value) = self.get_source_value() {
-            let source_term = kernel::passive_scalar_source_term(
-                source_value,
-                tau_g,
-                self.get_velocity_set_parameters(),
-            );
-            g_star
-                .iter_mut()
-                .zip(source_term.iter())
-                .for_each(|(g_star_i, source_term_i)| {
-                    *g_star_i += *source_term_i;
-                });
-        }
-        self.set_g_star(g_star);
-    }
-
-    pub(super) fn compute_trt_collision(&self, omega_plus: Float, omega_minus: Float) {
-        let g_star = kernel::trt_collision(
-            &self.get_g(),
-            &self.get_g_eq(),
-            omega_plus,
-            omega_minus,
-            self.get_velocity_set_parameters(),
-        );
-        self.set_g_star(g_star);
-    }
-
-    pub(super) fn compute_mrt_collision(&self, relaxation_vector: &[Float]) {
-        let g_star = kernel::mrt_collision(
-            self.get_scalar_value(),
-            &self.get_momentum_node().get_velocity(),
-            &self.get_g(),
-            &self.get_g_eq(),
-            relaxation_vector,
-            self.get_velocity_set_parameters(),
-        );
-        self.set_g_star(g_star);
-    }
-
-    pub(super) fn compute_streaming(&self) {
-        let vel_set_params = self.get_velocity_set_parameters();
-        let q = vel_set_params.get_q();
-        let mut g = vec![0.0; q];
-        self.get_neighbor_nodes()
-            .iter()
-            .for_each(|(i, neighbor_node)| {
-                let i_bar = vel_set_params.get_opposite_direction(*i);
-                g[i_bar] = neighbor_node.get_g_star()[i_bar];
-            });
-        self.set_g(g);
-    }
-
     pub(super) fn compute_inner_anti_bounce_back(&self) {
         let mut g = self.get_g();
         let g_star = self.get_g_star();
-        let vel_set_params = self.get_velocity_set_parameters();
+        let vel_set_params = self.get_vel_set_params();
         let w = vel_set_params.get_w();
         self.get_bounce_back_neighbor_nodes()
             .iter()
@@ -300,32 +299,10 @@ impl Node {
         self.set_g(g);
     }
 
-    pub(super) fn compute_inner_bounce_back(&self) {
-        let mut g = self.get_g();
-        let g_star = self.get_g_star();
-        let vel_set_params = self.get_velocity_set_parameters();
-        self.get_bounce_back_neighbor_nodes()
-            .iter()
-            .for_each(|(&i, _)| {
-                let i_bar = vel_set_params.get_opposite_direction(i);
-                g[i_bar] = g_star[i];
-            });
-        self.set_g(g);
-    }
-
     pub(super) fn compute_node_residuals(&self) -> Float {
         let scalar_value = self.get_scalar_value();
         let shallow_scalar_value = self.get_shallow_node().get_scalar_value();
         scalar_value - shallow_scalar_value
-    }
-
-    pub(super) fn update_shallow_node(&self) {
-        let scalar_value = self.get_scalar_value();
-        self.get_shallow_node().set_scalar_value(scalar_value);
-    }
-
-    pub(super) fn get_velocity_set_parameters(&self) -> &Arc<velocity_set::Parameters> {
-        &self.velocity_set_parameters
     }
 }
 

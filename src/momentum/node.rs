@@ -144,22 +144,46 @@ impl Default for Node {
     }
 }
 
-impl Node {
+impl NodeLike for Node {
     /// # Examples
     /// ```
     /// # use lbflow::momentum::Node;
     /// let node = Node::test_default(2);
     ///
-    /// assert_eq!(node.get_density(), 1.0);
-    /// assert_eq!(&node.get_density(), &1.0);
+    /// assert_eq!(node.get_f(), vec![0.0; 9]);
+    /// assert_eq!(node.get_f(), [0.0; 9]);
+    /// assert_eq!(node.get_f(), &[0.0; 9]);
+    /// assert_eq!(&node.get_f(), &[0.0; 9]);
     /// ```
-    pub fn get_density(&self) -> Float {
-        *self.density.read().unwrap()
+    fn get_f(&self) -> Vec<Float> {
+        self.f.read().unwrap().clone()
     }
 
-    fn set_density(&self, density: Float) {
-        let mut density_guard = self.density.write().unwrap();
-        *density_guard = density;
+    fn set_f(&self, f: Vec<Float>) {
+        let mut f_guard = self.f.write().unwrap();
+        *f_guard = f.to_vec();
+    }
+
+    fn get_f_eq(&self) -> Vec<Float> {
+        self.f_eq.read().unwrap().clone()
+    }
+
+    fn set_f_eq(&self, f_eq: Vec<Float>) {
+        let mut f_eq_guard = self.f_eq.write().unwrap();
+        *f_eq_guard = f_eq.to_vec();
+    }
+
+    fn get_f_star(&self) -> Vec<Float> {
+        self.f_star.read().unwrap().clone()
+    }
+
+    fn set_f_star(&self, f_star: Vec<Float>) {
+        let mut f_star_guard = self.f_star.write().unwrap();
+        *f_star_guard = f_star.to_vec();
+    }
+
+    fn get_value(&self) -> Float {
+        self.get_density()
     }
 
     /// # Examples
@@ -183,59 +207,12 @@ impl Node {
     /// assert_eq!(node.get_velocity(), &[0.0, 0.0, 0.0]);
     /// assert_eq!(&node.get_velocity(), &[0.0, 0.0, 0.0]);
     /// ```
-    pub fn get_velocity(&self) -> Vec<Float> {
+    fn get_velocity(&self) -> Vec<Float> {
         self.velocity.read().unwrap().clone()
     }
 
-    fn set_velocity(&self, velocity: Vec<Float>) {
-        let mut velocity_guard = self.velocity.write().unwrap();
-        *velocity_guard = velocity;
-    }
-
-    /// # Examples
-    /// ```
-    /// # use lbflow::momentum::Node;
-    /// let node = Node::test_default(2);
-    ///
-    /// assert_eq!(node.get_f(), vec![0.0; 9]);
-    /// assert_eq!(node.get_f(), [0.0; 9]);
-    /// assert_eq!(node.get_f(), &[0.0; 9]);
-    /// assert_eq!(&node.get_f(), &[0.0; 9]);
-    /// ```
-    pub fn get_f(&self) -> Vec<Float> {
-        self.f.read().unwrap().clone()
-    }
-
-    pub(super) fn set_f(&self, f: Vec<Float>) {
-        let mut f_guard = self.f.write().unwrap();
-        *f_guard = f;
-    }
-
-    pub(super) fn get_f_eq(&self) -> Vec<Float> {
-        self.f_eq.read().unwrap().clone()
-    }
-
-    pub(super) fn set_f_eq(&self, f_eq: Vec<Float>) {
-        let mut f_eq_guard = self.f_eq.write().unwrap();
-        *f_eq_guard = f_eq;
-    }
-
-    pub(super) fn get_f_star(&self) -> Vec<Float> {
-        self.f_star.read().unwrap().clone()
-    }
-
-    pub(super) fn set_f_star(&self, f_star: Vec<Float>) {
-        let mut f_star_guard = self.f_star.write().unwrap();
-        *f_star_guard = f_star;
-    }
-
-    pub fn is_bounce_back_node(&self) -> bool {
-        *self.bounce_back_node_status.read().unwrap()
-    }
-
-    pub(super) fn change_bounce_back_node_status(&self) {
-        let mut status_guard = self.bounce_back_node_status.write().unwrap();
-        *status_guard = !*status_guard;
+    fn get_vel_set_params(&self) -> &Arc<velocity_set::Parameters> {
+        &self.velocity_set_parameters
     }
 
     /// # Examples
@@ -247,7 +224,7 @@ impl Node {
     /// assert_eq!(node.get_node_type(), &NodeType::Fluid);
     /// assert_ne!(node.get_node_type(), &NodeType::Solid);
     /// ```
-    pub fn get_node_type(&self) -> &NodeType {
+    fn get_node_type(&self) -> &NodeType {
         &self.node_type
     }
 
@@ -259,15 +236,15 @@ impl Node {
     /// assert_eq!(node.get_index(), &vec![3, 7]);
     /// assert_eq!(node.get_index(), &[3, 7]);
     /// ```
-    pub fn get_index(&self) -> &Vec<usize> {
+    fn get_index(&self) -> &Vec<usize> {
         &self.index
     }
 
-    pub fn get_coordinates(&self) -> &Vec<Float> {
+    fn get_coordinates(&self) -> &Vec<Float> {
         &self.coordinates
     }
 
-    pub(super) fn get_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
+    fn get_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
         self.neighbor_nodes
             .read()
             .unwrap()
@@ -276,7 +253,7 @@ impl Node {
             .unwrap()
     }
 
-    pub(super) fn set_neighbor_nodes(&self, neighbor_nodes: HashMap<usize, Arc<Node>>) {
+    fn set_neighbor_nodes(&self, neighbor_nodes: HashMap<usize, Arc<Node>>) {
         let mut neighbor_nodes_guard = self.neighbor_nodes.write().unwrap();
         *neighbor_nodes_guard = Some(neighbor_nodes);
     }
@@ -290,7 +267,7 @@ impl Node {
             .unwrap()
     }
 
-    pub(super) fn set_bounce_back_neighbor_nodes(
+    fn set_bounce_back_neighbor_nodes(
         &self,
         bounce_back_neighbor_nodes: HashMap<usize, Arc<Node>>,
     ) {
@@ -298,38 +275,72 @@ impl Node {
         *bounce_back_neighbor_nodes_guard = Some(bounce_back_neighbor_nodes);
     }
 
-    pub(super) fn get_neighbor_node(&self, i: usize) -> Arc<Node> {
-        self.get_neighbor_nodes()
-            .get(&i)
-            .cloned()
-            .expect("Neighbor node not found")
+    fn is_bounce_back_node(&self) -> bool {
+        *self.bounce_back_node_status.read().unwrap()
+    }
+
+    fn change_bounce_back_node_status(&self) {
+        let mut status_guard = self.bounce_back_node_status.write().unwrap();
+        *status_guard = !*status_guard;
     }
 
     fn get_scalar_nodes(&self) -> HashMap<String, Arc<passive_scalar::Node>> {
         self.scalar_nodes.read().unwrap().as_ref().cloned().unwrap()
     }
 
-    pub fn get_scalar_node(&self, scalar_name: String) -> Arc<passive_scalar::Node> {
-        self.get_scalar_nodes()
-            .get(&scalar_name)
-            .cloned()
-            .expect("Scalar node not found")
+    fn compute_bgk_collision(&self, tau: Float) {
+        let mut f_star = kernel::bgk_collision(
+            &self.get_f(),
+            &self.get_f_eq(),
+            tau,
+            self.get_vel_set_params(),
+        );
+        if let Some(force) = self.get_force().as_deref() {
+            let source_term = kernel::momentum_source_term(
+                &self.get_velocity(),
+                force,
+                tau,
+                self.get_vel_set_params(),
+            );
+            f_star
+                .iter_mut()
+                .zip(source_term.iter())
+                .for_each(|(f_star_i, source_term_i)| {
+                    *f_star_i += *source_term_i;
+                });
+        };
+        self.set_f_star(f_star);
     }
 
-    pub(crate) fn append_scalar_node(&self, scalar_name: &str, node: Arc<passive_scalar::Node>) {
-        self.scalar_nodes
-            .write()
-            .unwrap()
-            .get_or_insert_with(HashMap::new)
-            .insert(scalar_name.to_string(), node);
+    fn update_shallow_node(&self) {
+        let density = self.get_density();
+        let velocity = self.get_velocity();
+        self.get_shallow_node().set_density(density);
+        self.get_shallow_node().set_velocity(velocity);
+    }
+}
+
+impl Node {
+    /// # Examples
+    /// ```
+    /// # use lbflow::momentum::Node;
+    /// let node = Node::test_default(2);
+    ///
+    /// assert_eq!(node.get_density(), 1.0);
+    /// assert_eq!(&node.get_density(), &1.0);
+    /// ```
+    pub fn get_density(&self) -> Float {
+        *self.density.read().unwrap()
     }
 
-    fn get_shallow_node(&self) -> &ShallowNode {
-        &self.shallow_node
+    fn set_density(&self, density: Float) {
+        let mut density_guard = self.density.write().unwrap();
+        *density_guard = density;
     }
 
-    pub(super) fn get_velocity_set_parameters(&self) -> &Arc<velocity_set::Parameters> {
-        &self.velocity_set_parameters
+    fn set_velocity(&self, velocity: Vec<Float>) {
+        let mut velocity_guard = self.velocity.write().unwrap();
+        *velocity_guard = velocity;
     }
 
     fn get_force(&self) -> Option<Vec<Float>> {
@@ -349,9 +360,19 @@ impl Node {
             (None, None) => None,
         }
     }
-}
 
-impl Node {
+    fn get_shallow_node(&self) -> &ShallowNode {
+        &self.shallow_node
+    }
+
+    pub(crate) fn append_scalar_node(&self, scalar_name: &str, node: Arc<passive_scalar::Node>) {
+        self.scalar_nodes
+            .write()
+            .unwrap()
+            .get_or_insert_with(HashMap::new)
+            .insert(scalar_name.to_string(), node);
+    }
+
     pub(super) fn compute_density(&self) {
         let f = self.get_f();
         let density = f.iter().sum::<Float>();
@@ -362,7 +383,7 @@ impl Node {
     pub(super) fn compute_velocity(&self, explicit_computation: bool) {
         let f = self.get_f();
         let density = self.get_density();
-        let vel_set_params = self.get_velocity_set_parameters();
+        let vel_set_params = self.get_vel_set_params();
         let d = vel_set_params.get_d();
         let c = vel_set_params.get_c();
         let mut velocity = match (
@@ -393,100 +414,6 @@ impl Node {
         self.set_velocity(velocity);
     }
 
-    /// $$ f\_{i}^{\text{eq}} = w\_{i}\rho\left[1+\frac{\mathbf{u}\cdot\mathbf{c}\_{i}}{c\_{s}^{2}}+\frac{\left(\mathbf{u}\cdot\mathbf{c}\_{i}\right)^{2}}{2 c\_{s}^{4}}-\frac{\mathbf{u}\cdot\mathbf{u}}{2 c\_{s}^{2}}\right] $$
-    ///
-    /// $$ f\_{0}^{\text{eq}} = \frac{2\rho}{9}\left(2-3\mathbf{u}^{2}\right) $$
-    /// $$ f\_{1}^{\text{eq}} = \frac{\rho}{18}\left(2+6u\_{x}+9u\_{x}^{2}-3\mathbf{u}^{2}\right) $$
-    /// $$ f\_{2}^{\text{eq}} = \frac{\rho}{18}\left(2+6u\_{y}+9u\_{y}^{2}-3\mathbf{u}^{2}\right) $$
-    /// $$ f\_{3}^{\text{eq}} = \frac{\rho}{18}\left(2-6u\_{x}+9u\_{x}^{2}-3\mathbf{u}^{2}\right) $$
-    /// $$ f\_{4}^{\text{eq}} = \frac{\rho}{18}\left(2-6u\_{y}+9u\_{y}^{2}-3\mathbf{u}^{2}\right) $$
-    /// $$ f\_{5}^{\text{eq}} = \frac{\rho}{36}\left[1+3\left(u\_{x}+u\_{y}\right)+9u\_{x}u\_{y}+3\mathbf{u}^{2}\right] $$
-    /// $$ f\_{6}^{\text{eq}} = \frac{\rho}{36}\left[1-3\left(u\_{x}-u\_{y}\right)-9u\_{x}u\_{y}+3\mathbf{u}^{2}\right] $$
-    /// $$ f\_{7}^{\text{eq}} = \frac{\rho}{36}\left[1-3\left(u\_{x}+u\_{y}\right)+9u\_{x}u\_{y}+3\mathbf{u}^{2}\right] $$
-    /// $$ f\_{8}^{\text{eq}} = \frac{\rho}{36}\left[1+3\left(u\_{x}-u\_{y}\right)-9u\_{x}u\_{y}+3\mathbf{u}^{2}\right] $$
-    pub(super) fn compute_equilibrium(&self) {
-        let f_eq = kernel::equilibrium(
-            self.get_density(),
-            &self.get_velocity(),
-            self.get_velocity_set_parameters(),
-        );
-        self.set_f_eq(f_eq);
-    }
-
-    pub(super) fn compute_bgk_collision(&self, tau: Float) {
-        let mut f_star = kernel::bgk_collision(
-            &self.get_f(),
-            &self.get_f_eq(),
-            tau,
-            self.get_velocity_set_parameters(),
-        );
-        if let Some(force) = self.get_force().as_deref() {
-            let source_term = kernel::momentum_source_term(
-                &self.get_velocity(),
-                force,
-                tau,
-                self.get_velocity_set_parameters(),
-            );
-            f_star
-                .iter_mut()
-                .zip(source_term.iter())
-                .for_each(|(f_star_i, source_term_i)| {
-                    *f_star_i += *source_term_i;
-                });
-        };
-        self.set_f_star(f_star);
-    }
-
-    pub(super) fn compute_trt_collision(&self, omega_plus: Float, omega_minus: Float) {
-        let f_star = kernel::trt_collision(
-            &self.get_f(),
-            &self.get_f_eq(),
-            omega_plus,
-            omega_minus,
-            self.get_velocity_set_parameters(),
-        );
-        self.set_f_star(f_star);
-    }
-
-    pub(super) fn compute_mrt_collision(&self, relaxation_vector: &[Float]) {
-        let f_star = kernel::mrt_collision(
-            self.get_density(),
-            &self.get_velocity(),
-            &self.get_f(),
-            &self.get_f_eq(),
-            relaxation_vector,
-            self.get_velocity_set_parameters(),
-        );
-        self.set_f_star(f_star);
-    }
-
-    /// $$ f\_{i}(\mathbf{x}+\mathbf{c}\_{i}\Delta t, t+\Delta t) = f\_{i}^{\star}(\mathbf{x},t) $$
-    pub(super) fn compute_streaming(&self) {
-        let vel_set_params = self.get_velocity_set_parameters();
-        let q = vel_set_params.get_q();
-        let mut f = vec![0.0; q];
-        self.get_neighbor_nodes()
-            .iter()
-            .for_each(|(i, neighbor_node)| {
-                let i_bar = vel_set_params.get_opposite_direction(*i);
-                f[i_bar] = neighbor_node.get_f_star()[i_bar];
-            });
-        self.set_f(f);
-    }
-
-    pub(super) fn compute_inner_bounce_back(&self) {
-        let mut f = self.get_f();
-        let f_star = self.get_f_star();
-        let vel_set_params = self.get_velocity_set_parameters();
-        self.get_bounce_back_neighbor_nodes()
-            .iter()
-            .for_each(|(&i, _)| {
-                let i_bar = vel_set_params.get_opposite_direction(i);
-                f[i_bar] = f_star[i];
-            });
-        self.set_f(f);
-    }
-
     pub(super) fn compute_node_residuals(&self) -> (Float, Vec<Float>) {
         let density = self.get_density();
         let velocity = self.get_velocity();
@@ -500,15 +427,7 @@ impl Node {
             .collect::<Vec<Float>>();
         (node_residual_density, node_residual_velocity)
     }
-
-    pub(super) fn update_shallow_node(&self) {
-        let density = self.get_density();
-        let velocity = self.get_velocity();
-        self.get_shallow_node().set_density(density);
-        self.get_shallow_node().set_velocity(velocity);
-    }
 }
-
 // ------------------------------------------------------------------- STRUCT: ShallowNode
 
 #[derive(Debug)]
