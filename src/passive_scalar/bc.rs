@@ -1,5 +1,7 @@
+use super::Lattice;
 use super::Node;
 use crate::prelude_crate::*;
+use rayon::prelude::*;
 
 pub use BoundaryCondition::*;
 pub use InnerBoundaryCondition::*;
@@ -9,6 +11,8 @@ pub enum BoundaryCondition {
     AntiBounceBack { scalar_value: Float },
     AntiBBNoFlux,
     BBNoFlux,
+    ZerothOrderNoFlux,
+    SecondOrderNoFlux,
     Periodic,
 }
 
@@ -18,8 +22,67 @@ pub enum InnerBoundaryCondition {
     InnerBounceBack = 1,
 }
 
+impl<'a> Lattice<'a> {
+    pub(super) fn boundary_conditions_step(&self) {
+        self.get_boundary_nodes()
+            .iter()
+            .for_each(|(boundary_face, nodes)| {
+                let boundary_condition = self.get_boundary_condition(boundary_face);
+                let momentum_boundary_condition = self
+                    .get_momentum_lattice()
+                    .get_boundary_condition(boundary_face);
+                let dim = *self.get_d();
+                let velocity = match momentum_boundary_condition {
+                    momentum::bc::NoSlip => Some(vec![0.0; dim]),
+                    momentum::bc::BounceBack { velocity, .. } => Some(velocity.to_vec()),
+                    momentum::bc::AntiBounceBack { .. } => None,
+                    momentum::bc::Periodic => None,
+                    momentum::bc::ZouHe { velocity, .. } => {
+                        if velocity.iter().all(|v| v.is_some()) {
+                            Some(velocity.iter().map(|v| v.unwrap()).collect::<Vec<Float>>())
+                        } else {
+                            None
+                        }
+                    }
+                };
+                match boundary_condition {
+                    AntiBounceBack { scalar_value } => {
+                        nodes.par_iter().for_each(|node| {
+                            node.compute_anti_bounce_back_bc(
+                                boundary_face,
+                                scalar_value,
+                                velocity.as_deref(),
+                            );
+                        });
+                    }
+                    AntiBBNoFlux => {
+                        nodes.par_iter().for_each(|node| {
+                            node.compute_anti_bb_no_flux_bc(boundary_face, velocity.as_deref());
+                        });
+                    }
+                    BBNoFlux => {
+                        nodes.par_iter().for_each(|node| {
+                            node.compute_bb_no_flux_bc(boundary_face);
+                        });
+                    }
+                    ZerothOrderNoFlux => {
+                        nodes.par_iter().for_each(|node| {
+                            node.compute_zeroth_order_no_flux_bc(boundary_face);
+                        });
+                    }
+                    SecondOrderNoFlux => {
+                        nodes.par_iter().for_each(|node| {
+                            node.compute_second_order_no_flux_bc(boundary_face);
+                        });
+                    }
+                    Periodic => {}
+                }
+            });
+    }
+}
+
 impl Node {
-    pub(super) fn compute_anti_bounce_back_bc(
+    fn compute_anti_bounce_back_bc(
         &self,
         boundary_face: &BoundaryFace,
         scalar_value: &Float,
@@ -27,7 +90,7 @@ impl Node {
     ) {
         let mut g = self.get_g();
         let g_star = self.get_g_star();
-        let vel_set_params = self.get_velocity_set_parameters();
+        let vel_set_params = self.get_vel_set_params();
         let w = vel_set_params.get_w();
         let c = vel_set_params.get_c();
         let q_faces = vel_set_params.get_q_faces(boundary_face);
@@ -49,23 +112,49 @@ impl Node {
         self.set_g(g);
     }
 
-    pub(super) fn compute_anti_bb_no_flux_bc(
-        &self,
-        boundary_face: &BoundaryFace,
-        velocity: Option<&[Float]>,
-    ) {
+    fn compute_anti_bb_no_flux_bc(&self, boundary_face: &BoundaryFace, velocity: Option<&[Float]>) {
         self.compute_anti_bounce_back_bc(boundary_face, &self.get_scalar_value(), velocity);
     }
 
-    pub(super) fn compute_bb_no_flux_bc(&self, boundary_face: &BoundaryFace) {
+    fn compute_bb_no_flux_bc(&self, boundary_face: &BoundaryFace) {
         let mut g = self.get_g();
         let g_star = self.get_g_star();
-        let vel_set_params = self.get_velocity_set_parameters();
+        let vel_set_params = self.get_vel_set_params();
         let q_faces = vel_set_params.get_q_faces(boundary_face);
         q_faces.iter().for_each(|&i| {
             let i_bar = vel_set_params.get_opposite_direction(i);
             g[i_bar] = g_star[i];
         });
+        self.set_g(g);
+    }
+
+    fn compute_zeroth_order_no_flux_bc(&self, boundary_face: &BoundaryFace) {
+        let mut g = self.get_g();
+        let vel_set_params = self.get_vel_set_params();
+        let q_faces = vel_set_params.get_q_faces(boundary_face);
+        let i_normal = vel_set_params.get_face_normal_direction(boundary_face);
+        let neighbor_node = self.get_neighbor_node(i_normal);
+        let neighbor_g = neighbor_node.get_g();
+        q_faces
+            .iter()
+            .map(|&i| vel_set_params.get_opposite_direction(i))
+            .for_each(|i| g[i] = neighbor_g[i]);
+        self.set_g(g);
+    }
+
+    fn compute_second_order_no_flux_bc(&self, boundary_face: &BoundaryFace) {
+        let mut g = self.get_g();
+        let vel_set_params = self.get_vel_set_params();
+        let q_faces = vel_set_params.get_q_faces(boundary_face);
+        let i_normal = vel_set_params.get_face_normal_direction(boundary_face);
+        let neighbor_node = self.get_neighbor_node(i_normal);
+        let next_neighbor_node = neighbor_node.get_neighbor_node(i_normal);
+        let neighbor_g = neighbor_node.get_g();
+        let next_neighbor_g = next_neighbor_node.get_g();
+        q_faces
+            .iter()
+            .map(|&i| vel_set_params.get_opposite_direction(i))
+            .for_each(|i| g[i] = 2.0 * neighbor_g[i] - next_neighbor_g[i]);
         self.set_g(g);
     }
 
@@ -77,7 +166,7 @@ impl Node {
         match velocity {
             Some(velocity) => velocity.to_vec(),
             None => {
-                let vel_set_params = self.get_velocity_set_parameters();
+                let vel_set_params = self.get_vel_set_params();
                 let i_normal = vel_set_params.get_face_normal_direction(boundary_face);
                 let node_velocity = self.get_momentum_node().get_velocity();
                 let neighbor_velocity = self
