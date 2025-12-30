@@ -1,3 +1,4 @@
+pub(crate) use crate::NodeLike;
 pub(crate) use crate::cli::{Config, LbResult};
 pub(crate) use crate::constants::*;
 pub(crate) use crate::io::WriteDataMode;
