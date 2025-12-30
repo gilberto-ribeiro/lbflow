@@ -1,5 +1,6 @@
 // ------------------------------------------------------------------------------- MODULES
 
+mod d2q5;
 mod d2q9;
 mod d3q15;
 mod d3q19;
@@ -16,15 +17,40 @@ type ZouHeComputation = fn(&BoundaryFace, &[Float], &Option<Float>, &[Option<Flo
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VelocitySet {
-    D2Q9 = 0,
-    D3Q15 = 1,
-    D3Q19 = 2,
-    D3Q27 = 3,
+    D2Q5 = 0,
+    D2Q9 = 1,
+    D3Q15 = 2,
+    D3Q19 = 3,
+    D3Q27 = 4,
 }
 
 impl VelocitySet {
     pub(crate) fn get_velocity_set_parameters(&self) -> Parameters {
         match self {
+            D2Q5 => Parameters {
+                velocity_set: D2Q5,
+                d: d2q5::D,
+                q: d2q5::Q,
+                c: d2q5::C.iter().map(|&arr| arr.to_vec()).collect(),
+                w: d2q5::W.to_vec(),
+                q_bar: d2q5::Q_BAR.to_vec(),
+                q_faces: FACES_2D
+                    .iter()
+                    .zip(d2q5::Q_FACES.iter())
+                    .map(|(face, &arr)| (*face, arr.to_vec()))
+                    .collect(),
+                face_normal_directions: HashMap::from([
+                    (West, 1),
+                    (East, 2),
+                    (South, 3),
+                    (North, 4),
+                ]),
+                velocity_computation: None,
+                zou_he_bc_computation: None,
+                mrt_matrix: todo!("Implementing MRT matrix for D2Q5."),
+                mrt_inverse_matrix: todo!("Implementing MRT inverse matrix for D2Q5"),
+                mrt_equilibrium_moments_computation: None,
+            },
             D2Q9 => Parameters {
                 velocity_set: D2Q9,
                 d: d2q9::D,
@@ -139,7 +165,7 @@ impl VelocitySet {
                 velocity_computation: Some(d3q27::velocity_computation),
                 zou_he_bc_computation: None,
                 mrt_matrix: d3q27::MRT_MATRIX.iter().map(|row| row.to_vec()).collect(),
-                mrt_inverse_matrix: vec![vec![0.0; d3q27::Q]; d3q27::Q], // Placeholder for inverse matrix
+                mrt_inverse_matrix: todo!("Implementing MRT inverse matrix for D3Q27"),
                 mrt_equilibrium_moments_computation: None,
             },
         }
