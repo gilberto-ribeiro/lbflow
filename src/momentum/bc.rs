@@ -1,5 +1,7 @@
+use super::Lattice;
 use super::Node;
 use crate::prelude_crate::*;
+use rayon::prelude::*;
 
 pub use BoundaryCondition::*;
 
@@ -23,8 +25,41 @@ pub enum BoundaryCondition {
     Periodic,
 }
 
+impl Lattice {
+    pub(super) fn boundary_conditions_step(&self) {
+        self.get_boundary_nodes()
+            .iter()
+            .for_each(|(boundary_face, nodes)| {
+                let boundary_condition = self.get_boundary_condition(boundary_face);
+                match boundary_condition {
+                    NoSlip => {
+                        nodes.par_iter().for_each(|node| {
+                            node.compute_no_slip_bc(boundary_face);
+                        });
+                    }
+                    BounceBack { density, velocity } => {
+                        nodes.par_iter().for_each(|node| {
+                            node.compute_bounce_back_bc(boundary_face, density, velocity);
+                        });
+                    }
+                    AntiBounceBack { density } => {
+                        nodes.par_iter().for_each(|node| {
+                            node.compute_anti_bounce_back_bc(boundary_face, density);
+                        });
+                    }
+                    Periodic => {}
+                    ZouHe { density, velocity } => {
+                        nodes.par_iter().for_each(|node| {
+                            node.compute_zou_he_bc(boundary_face, density, velocity);
+                        });
+                    }
+                }
+            });
+    }
+}
+
 impl Node {
-    pub(super) fn compute_bounce_back_bc(
+    fn compute_bounce_back_bc(
         &self,
         boundary_face: &BoundaryFace,
         density: &Float,
@@ -32,7 +67,7 @@ impl Node {
     ) {
         let mut f = self.get_f();
         let f_star = self.get_f_star();
-        let vel_set_params = self.get_velocity_set_parameters();
+        let vel_set_params = self.get_vel_set_params();
         let w = vel_set_params.get_w();
         let c = vel_set_params.get_c();
         let q_faces = vel_set_params.get_q_faces(boundary_face);
@@ -48,14 +83,10 @@ impl Node {
         self.set_f(f);
     }
 
-    pub(super) fn compute_anti_bounce_back_bc(
-        &self,
-        boundary_face: &BoundaryFace,
-        density: &Float,
-    ) {
+    fn compute_anti_bounce_back_bc(&self, boundary_face: &BoundaryFace, density: &Float) {
         let mut f = self.get_f();
         let f_star = self.get_f_star();
-        let vel_set_params = self.get_velocity_set_parameters();
+        let vel_set_params = self.get_vel_set_params();
         let w = vel_set_params.get_w();
         let c = vel_set_params.get_c();
         let q_faces = vel_set_params.get_q_faces(boundary_face);
@@ -85,10 +116,10 @@ impl Node {
         self.set_f(f);
     }
 
-    pub(super) fn compute_no_slip_bc(&self, boundary_face: &BoundaryFace) {
+    fn compute_no_slip_bc(&self, boundary_face: &BoundaryFace) {
         let mut f = self.get_f();
         let f_star = self.get_f_star();
-        let vel_set_params = self.get_velocity_set_parameters();
+        let vel_set_params = self.get_vel_set_params();
         let q_faces = vel_set_params.get_q_faces(boundary_face);
         q_faces.iter().for_each(|&i| {
             let i_bar = vel_set_params.get_opposite_direction(i);
@@ -97,14 +128,14 @@ impl Node {
         self.set_f(f);
     }
 
-    pub(super) fn compute_zou_he_bc(
+    fn compute_zou_he_bc(
         &self,
         boundary_face: &BoundaryFace,
         density: &Option<Float>,
         velocity: &[Option<Float>],
     ) {
         let f = self.get_f();
-        let vel_set_params = self.get_velocity_set_parameters();
+        let vel_set_params = self.get_vel_set_params();
         let f = vel_set_params
             .zou_he_bc_computation
             .as_ref()
