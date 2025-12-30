@@ -1,4 +1,4 @@
-use super::bc::BoundaryCondition::{self, *};
+use super::bc::BoundaryCondition;
 use super::post::PostFunction;
 use super::{Node, Parameters, Residuals};
 use crate::prelude_crate::*;
@@ -259,7 +259,7 @@ impl Lattice {
         &self.bounce_back_nodes
     }
 
-    fn get_boundary_nodes(&self) -> &HashMap<BoundaryFace, Vec<Arc<Node>>> {
+    pub(super) fn get_boundary_nodes(&self) -> &HashMap<BoundaryFace, Vec<Arc<Node>>> {
         &self.boundary_nodes
     }
 
@@ -363,37 +363,6 @@ impl Lattice {
         self.get_bounce_back_nodes().par_iter().for_each(|node| {
             node.compute_inner_bounce_back();
         });
-    }
-
-    fn boundary_conditions_step(&self) {
-        self.get_boundary_nodes()
-            .iter()
-            .for_each(|(boundary_face, nodes)| {
-                let boundary_condition = self.get_boundary_condition(boundary_face);
-                match boundary_condition {
-                    NoSlip => {
-                        nodes.par_iter().for_each(|node| {
-                            node.compute_no_slip_bc(boundary_face);
-                        });
-                    }
-                    BounceBack { density, velocity } => {
-                        nodes.par_iter().for_each(|node| {
-                            node.compute_bounce_back_bc(boundary_face, density, velocity);
-                        });
-                    }
-                    AntiBounceBack { density } => {
-                        nodes.par_iter().for_each(|node| {
-                            node.compute_anti_bounce_back_bc(boundary_face, density);
-                        });
-                    }
-                    Periodic => {}
-                    ZouHe { density, velocity } => {
-                        nodes.par_iter().for_each(|node| {
-                            node.compute_zou_he_bc(boundary_face, density, velocity);
-                        });
-                    }
-                }
-            });
     }
 
     pub(crate) fn compute_lattice_residuals(&self) {

@@ -178,6 +178,7 @@ impl ConversionFactor {
                 (shear_viscosity, bulk_viscosity)
             }
             MRT(relaxation_vector) => match velocity_set {
+                D2Q5 => todo!("Implementing conversion factor for D2Q5."),
                 D2Q9 => {
                     let omega_nu = relaxation_vector[7];
                     let omega_e = relaxation_vector[1];

@@ -59,7 +59,7 @@ impl Node {
             let g_function = mp_params.get_g_function();
             let wall_phi = mp_params.get_wall_phi();
             let node_phi = self.get_phi().unwrap();
-            let vs_params = self.get_velocity_set_parameters();
+            let vs_params = self.get_vel_set_params();
             let c = vs_params.get_c();
             let w = vs_params.get_w();
             let d = vs_params.get_d();

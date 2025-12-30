@@ -1,7 +1,7 @@
 use super::Node;
 use super::Parameters;
 use super::Residuals;
-use super::bc::BoundaryCondition::{self, *};
+use super::bc::BoundaryCondition;
 use super::bc::InnerBoundaryCondition::{self, *};
 use crate::prelude_crate::*;
 use crate::{FACES_2D, FACES_3D};
@@ -200,11 +200,14 @@ impl<'a> Lattice<'a> {
         &self.bounce_back_nodes
     }
 
-    fn get_boundary_nodes(&self) -> &HashMap<BoundaryFace, Vec<Arc<Node>>> {
+    pub(super) fn get_boundary_nodes(&self) -> &HashMap<BoundaryFace, Vec<Arc<Node>>> {
         &self.boundary_nodes
     }
 
-    fn get_boundary_condition(&self, boundary_face: &BoundaryFace) -> &BoundaryCondition {
+    pub(super) fn get_boundary_condition(
+        &self,
+        boundary_face: &BoundaryFace,
+    ) -> &BoundaryCondition {
         self.boundary_conditions
             .get(boundary_face)
             .expect("Boundary faces not found")
@@ -227,7 +230,7 @@ impl<'a> Lattice<'a> {
         self.scalar_name
     }
 
-    fn get_d(&self) -> &usize {
+    pub(super) fn get_d(&self) -> &usize {
         &self.velocity_set_parameters.d
     }
 
@@ -293,53 +296,6 @@ impl<'a> Lattice<'a> {
             InnerAntiBounceBack => self.inner_anti_bounce_back_step(),
             InnerBounceBack => self.inner_bounce_back_step(),
         }
-    }
-
-    fn boundary_conditions_step(&self) {
-        self.get_boundary_nodes()
-            .iter()
-            .for_each(|(boundary_face, nodes)| {
-                let boundary_condition = self.get_boundary_condition(boundary_face);
-                let momentum_boundary_condition = self
-                    .get_momentum_lattice()
-                    .get_boundary_condition(boundary_face);
-                let dim = *self.get_d();
-                let velocity = match momentum_boundary_condition {
-                    momentum::bc::NoSlip => Some(vec![0.0; dim]),
-                    momentum::bc::BounceBack { velocity, .. } => Some(velocity.to_vec()),
-                    momentum::bc::AntiBounceBack { .. } => None,
-                    momentum::bc::Periodic => None,
-                    momentum::bc::ZouHe { velocity, .. } => {
-                        if velocity.iter().all(|v| v.is_some()) {
-                            Some(velocity.iter().map(|v| v.unwrap()).collect::<Vec<Float>>())
-                        } else {
-                            None
-                        }
-                    }
-                };
-                match boundary_condition {
-                    AntiBounceBack { scalar_value } => {
-                        nodes.par_iter().for_each(|node| {
-                            node.compute_anti_bounce_back_bc(
-                                boundary_face,
-                                scalar_value,
-                                velocity.as_deref(),
-                            );
-                        });
-                    }
-                    AntiBBNoFlux => {
-                        nodes.par_iter().for_each(|node| {
-                            node.compute_anti_bb_no_flux_bc(boundary_face, velocity.as_deref());
-                        });
-                    }
-                    BBNoFlux => {
-                        nodes.par_iter().for_each(|node| {
-                            node.compute_bb_no_flux_bc(boundary_face);
-                        });
-                    }
-                    Periodic => {}
-                }
-            });
     }
 
     pub(super) fn compute_lattice_residuals(&self) {
