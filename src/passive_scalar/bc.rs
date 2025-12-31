@@ -129,17 +129,17 @@ impl Node {
     }
 
     fn compute_zeroth_order_no_flux_bc(&self, boundary_face: &BoundaryFace) {
-        let mut g = self.get_g();
+        // let mut g = self.get_g();
         let vel_set_params = self.get_vel_set_params();
-        let q_faces = vel_set_params.get_q_faces(boundary_face);
+        // let q_faces = vel_set_params.get_q_faces(boundary_face);
         let i_normal = vel_set_params.get_face_normal_direction(boundary_face);
         let neighbor_node = self.get_neighbor_node(i_normal);
-        let neighbor_g = neighbor_node.get_g();
-        q_faces
-            .iter()
-            .map(|&i| vel_set_params.get_opposite_direction(i))
-            .for_each(|i| g[i] = neighbor_g[i]);
-        self.set_g(g);
+        let neighbor_node_g = neighbor_node.get_g();
+        // q_faces
+        //     .iter()
+        //     .map(|&i| vel_set_params.get_opposite_direction(i))
+        //     .for_each(|i| g[i] = neighbor_g[i]);
+        self.set_g(neighbor_node_g);
     }
 
     fn compute_second_order_no_flux_bc(&self, boundary_face: &BoundaryFace) {
@@ -168,11 +168,8 @@ impl Node {
             None => {
                 let vel_set_params = self.get_vel_set_params();
                 let i_normal = vel_set_params.get_face_normal_direction(boundary_face);
-                let node_velocity = self.get_momentum_node().get_velocity();
-                let neighbor_velocity = self
-                    .get_neighbor_node(i_normal)
-                    .get_momentum_node()
-                    .get_velocity();
+                let node_velocity = self.get_velocity();
+                let neighbor_velocity = self.get_neighbor_node(i_normal).get_velocity();
                 node_velocity
                     .iter()
                     .zip(neighbor_velocity.iter())
