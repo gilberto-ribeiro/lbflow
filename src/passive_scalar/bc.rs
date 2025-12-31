@@ -8,11 +8,23 @@ pub use InnerBoundaryCondition::*;
 
 #[derive(Debug, PartialEq)]
 pub enum BoundaryCondition {
-    AntiBounceBack { scalar_value: Float },
+    AntiBounceBack {
+        scalar_value: Float,
+    },
     AntiBBNoFlux,
     BBNoFlux,
-    ZerothOrderNoFlux,
-    SecondOrderNoFlux,
+    /// The option used in the papers below is `unknown_populations_only = false`
+    /// - Klass, F., Gabbana, A., & Bartel, A. (2025). Perfectly Matched Layers and Characteristic Boundaries in Lattice Boltzmann: Accuracy vs Cost. **AIAA Journal**, 63(4), 1319–1329. https://doi.org/10.2514/1.J064563
+    /// - Neeraj, T., Velten, C., Janiga, G., Zähringer, K., Namdar, R., Varnik, F., Thévenin, D., & Hosseini, S. A. (2023). Modeling Gas Flows in Packed Beds with the Lattice Boltzmann Method: Validation Against Experiments. **Flow, Turbulence and Combustion**, 111(2), 463–491. https://doi.org/10.1007/s10494-023-00444-z
+    ZerothOrderNoFlux {
+        unknown_populations_only: bool,
+    },
+    /// The option used in the papers below is `unknown_populations_only = true`
+    /// - Junk, M., & Yang, Z. (2008). Outflow boundary conditions for the lattice Boltzmann method. **Progress in Computational Fluid Dynamics, An International Journal**, 8(1/2/3/4), 38. https://doi.org/10.1504/PCFD.2008.018077
+    /// - Yu, D., Mei, R., & Shyy, W. (2005). Improved treatment of the open boundary in the method of Lattice Boltzmann equation: general description of the method. **Progress in Computational Fluid Dynamics, An International Journal**, 5(1/2), 3. https://doi.org/10.1504/PCFD.2005.005812
+    SecondOrderNoFlux {
+        unknown_populations_only: bool,
+    },
     Periodic,
 }
 
@@ -65,14 +77,24 @@ impl<'a> Lattice<'a> {
                             node.compute_bb_no_flux_bc(boundary_face);
                         });
                     }
-                    ZerothOrderNoFlux => {
+                    ZerothOrderNoFlux {
+                        unknown_populations_only,
+                    } => {
                         nodes.par_iter().for_each(|node| {
-                            node.compute_zeroth_order_no_flux_bc(boundary_face);
+                            node.compute_zeroth_order_no_flux_bc(
+                                boundary_face,
+                                unknown_populations_only,
+                            );
                         });
                     }
-                    SecondOrderNoFlux => {
+                    SecondOrderNoFlux {
+                        unknown_populations_only,
+                    } => {
                         nodes.par_iter().for_each(|node| {
-                            node.compute_second_order_no_flux_bc(boundary_face);
+                            node.compute_second_order_no_flux_bc(
+                                boundary_face,
+                                unknown_populations_only,
+                            );
                         });
                     }
                     Periodic => {}
@@ -128,33 +150,50 @@ impl Node {
         self.set_g(g);
     }
 
-    fn compute_zeroth_order_no_flux_bc(&self, boundary_face: &BoundaryFace) {
-        // let mut g = self.get_g();
+    fn compute_zeroth_order_no_flux_bc(
+        &self,
+        boundary_face: &BoundaryFace,
+        unknown_populations_only: &bool,
+    ) {
+        let mut g = self.get_g();
         let vel_set_params = self.get_vel_set_params();
-        // let q_faces = vel_set_params.get_q_faces(boundary_face);
         let i_normal = vel_set_params.get_face_normal_direction(boundary_face);
         let neighbor_node = self.get_neighbor_node(i_normal);
         let neighbor_node_g = neighbor_node.get_g();
-        // q_faces
-        //     .iter()
-        //     .map(|&i| vel_set_params.get_opposite_direction(i))
-        //     .for_each(|i| g[i] = neighbor_g[i]);
-        self.set_g(neighbor_node_g);
+        if *unknown_populations_only {
+            let q_faces = vel_set_params.get_q_faces(boundary_face);
+            q_faces
+                .iter()
+                .map(|&i| vel_set_params.get_opposite_direction(i))
+                .for_each(|i| g[i] = neighbor_node_g[i]);
+        } else {
+            g = neighbor_node_g;
+        };
+        self.set_g(g);
     }
 
-    fn compute_second_order_no_flux_bc(&self, boundary_face: &BoundaryFace) {
+    fn compute_second_order_no_flux_bc(
+        &self,
+        boundary_face: &BoundaryFace,
+        unknown_populations_only: &bool,
+    ) {
         let mut g = self.get_g();
         let vel_set_params = self.get_vel_set_params();
-        let q_faces = vel_set_params.get_q_faces(boundary_face);
         let i_normal = vel_set_params.get_face_normal_direction(boundary_face);
         let neighbor_node = self.get_neighbor_node(i_normal);
         let next_neighbor_node = neighbor_node.get_neighbor_node(i_normal);
         let neighbor_g = neighbor_node.get_g();
         let next_neighbor_g = next_neighbor_node.get_g();
-        q_faces
-            .iter()
-            .map(|&i| vel_set_params.get_opposite_direction(i))
-            .for_each(|i| g[i] = 2.0 * neighbor_g[i] - next_neighbor_g[i]);
+        if *unknown_populations_only {
+            let q_faces = vel_set_params.get_q_faces(boundary_face);
+            q_faces
+                .iter()
+                .map(|&i| vel_set_params.get_opposite_direction(i))
+                .for_each(|i| g[i] = 2.0 * neighbor_g[i] - next_neighbor_g[i]);
+        } else {
+            let q = vel_set_params.get_q();
+            (0..q).for_each(|i| g[i] = 2.0 * neighbor_g[i] - next_neighbor_g[i])
+        };
         self.set_g(g);
     }
 
