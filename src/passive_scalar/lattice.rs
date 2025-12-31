@@ -77,7 +77,7 @@ impl<'a> Lattice<'a> {
 
         let mut nodes_matrix: Vec<Vec<Vec<Option<Arc<Node>>>>> = vec![vec![vec![None; nx]; ny]; nz];
         nodes.iter().for_each(|node| {
-            let index = node.get_momentum_node().get_index();
+            let index = node.get_index();
             let x = index[0];
             let y = index[1];
             let z = match d {
@@ -105,7 +105,7 @@ impl<'a> Lattice<'a> {
         println!("Setting up neighbor nodes for each node in the lattice...\n");
         nodes.iter().enumerate().for_each(|(n_i, node)| {
             crate::io::progress_bar(n_i, number_of_nodes);
-            let index = node.get_momentum_node().get_index();
+            let index = node.get_index();
             let neighbor_nodes = c
                 .iter()
                 .enumerate()
@@ -133,7 +133,7 @@ impl<'a> Lattice<'a> {
 
         let fluid_nodes = nodes
             .iter()
-            .filter(|node| matches!(node.get_momentum_node().get_node_type(), Fluid))
+            .filter(|node| matches!(node.get_node_type(), Fluid))
             .cloned()
             .collect::<Vec<Arc<Node>>>();
 
@@ -143,7 +143,7 @@ impl<'a> Lattice<'a> {
             .map(|(face, (&limit, &x))| {
                 let face_nodes = fluid_nodes
                     .iter()
-                    .filter(|node| node.get_momentum_node().get_index()[x] == limit)
+                    .filter(|node| node.get_index()[x] == limit)
                     .cloned()
                     .collect::<Vec<Arc<Node>>>();
                 (*face, face_nodes)
@@ -155,9 +155,7 @@ impl<'a> Lattice<'a> {
             let bounce_back_neighbor_nodes = node
                 .get_neighbor_nodes()
                 .iter()
-                .filter(|(_, neighbor_node)| {
-                    matches!(neighbor_node.get_momentum_node().get_node_type(), Solid)
-                })
+                .filter(|(_, neighbor_node)| matches!(neighbor_node.get_node_type(), Solid))
                 .map(|(i, neighbor_node)| (*i, Arc::clone(neighbor_node)))
                 .collect::<HashMap<usize, Arc<Node>>>();
             if !bounce_back_neighbor_nodes.is_empty() {
