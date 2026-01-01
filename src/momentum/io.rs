@@ -72,19 +72,10 @@ impl Lattice {
     }
 
     pub(crate) fn write_data(&self) {
-        match self.get_config().get_write_data_mode() {
-            WriteDataMode::Frequency(n) => {
-                if self.get_time_step().is_multiple_of(*n) || self.get_time_step() == 0 {
-                    println!();
-                    self.write_data_from_steps();
-                }
-            }
-            WriteDataMode::ListOfSteps(list) => {
-                if list.contains(&self.get_time_step()) || self.get_time_step() == 0 {
-                    println!();
-                    self.write_data_from_steps();
-                }
-            }
+        let n = self.get_cli_args().get_write_data_frequency();
+        if self.get_time_step().is_multiple_of(n) || self.get_time_step() == 0 {
+            println!();
+            self.write_data_from_steps();
         }
     }
 
@@ -122,7 +113,7 @@ impl Lattice {
     where
         P: AsRef<Path>,
     {
-        let number_of_threads = self.get_config().get_number_of_threads();
+        let number_of_threads = self.get_cli_args().get_number_of_threads();
         let step_path = Arc::new(step_path.as_ref().to_path_buf());
         if number_of_threads == 1 {
             let path = step_path.join(crate::io::DENSITY_FILE);
@@ -156,7 +147,7 @@ impl Lattice {
     where
         P: AsRef<Path>,
     {
-        let number_of_threads = self.get_config().get_number_of_threads();
+        let number_of_threads = self.get_cli_args().get_number_of_threads();
         let step_path = Arc::new(step_path.as_ref().to_path_buf());
         let mut header = String::from("velocity_x,velocity_y");
         if *self.get_d() == 3 {

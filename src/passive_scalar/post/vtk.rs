@@ -27,7 +27,6 @@ fn unify_scalar_values(time_step: usize, prefix: &str, keep: bool) -> LbResult<(
 fn append_passive_scalar_vtk<P: AsRef<Path>>(
     path: P,
     prefix: &str,
-    _config: &Config,
     scalar_values: &[Float],
 ) -> LbResult<()> {
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;
@@ -39,7 +38,7 @@ fn append_passive_scalar_vtk<P: AsRef<Path>>(
     Ok(())
 }
 
-fn passive_scalar_vtk(config: &Config, prefix: &str) {
+fn passive_scalar_vtk(prefix: &str) {
     crate::io::collect_time_steps()
         .unwrap_or_else(|e| {
             eprintln!("Error: {e}");
@@ -57,7 +56,7 @@ fn passive_scalar_vtk(config: &Config, prefix: &str) {
                 file_name.bold().yellow(),
                 time_step.to_string().bold().yellow()
             );
-            if let Err(e) = append_passive_scalar_vtk(&path, prefix, config, &scalar_values) {
+            if let Err(e) = append_passive_scalar_vtk(&path, prefix, &scalar_values) {
                 eprintln!("Error writing VTK {path:?}: {e}");
                 std::process::exit(1);
             };
@@ -84,9 +83,9 @@ fn passive_scalar_unify(prefix: &str, keep: bool) {
         });
 }
 
-fn passive_scalar_vtk_vec(config: &Config, prefixes: &[String]) {
+fn passive_scalar_vtk_vec(prefixes: &[String]) {
     prefixes.iter().for_each(|prefix| {
-        passive_scalar_vtk(config, prefix);
+        passive_scalar_vtk(prefix);
     });
 }
 
@@ -97,63 +96,108 @@ fn passive_scalar_unify_vec(prefixes: &[String], keep: bool) {
 }
 
 pub(crate) fn post_vtk(
-    config: Config,
+    cli_args: Cli,
     momentum_params: momentum::Parameters,
     passive_scalar_params: passive_scalar::Parameters,
 ) {
-    let n = momentum_params.n.clone();
-    let dim = n.len();
-    let (_, coordinates, node_types) = momentum::post::vtk::read_coordinates_file(dim);
-    let conversion_factor = momentum::ConversionFactor::from(momentum_params);
-    momentum::post::vtk::node_type_vtk(&config, &n, &coordinates, &node_types);
-    momentum::post::vtk::momentum_vtk(&config, &conversion_factor, &n, &coordinates);
-    passive_scalar_vtk(&config, passive_scalar_params.scalar_name);
+    match cli_args.command {
+        cli::Command::Run { .. } => {}
+        cli::Command::Post { command } => {
+            if let cli::PostCommand::Vtk {
+                node_type,
+                physical_data,
+                ..
+            } = command
+            {
+                let n = momentum_params.n.clone();
+                let dim = n.len();
+                let (_, coordinates, node_types) = momentum::post::vtk::read_coordinates_file(dim);
+                let conversion_factor = momentum::ConversionFactor::from(momentum_params);
+                momentum::post::vtk::node_type_vtk(&n, &coordinates, &node_types, node_type);
+                momentum::post::vtk::momentum_vtk(
+                    &conversion_factor,
+                    &n,
+                    &coordinates,
+                    physical_data,
+                );
+                passive_scalar_vtk(passive_scalar_params.scalar_name);
+            }
+        }
+    }
 }
 
 pub(crate) fn post_unify(
-    config: Config,
+    cli_args: Cli,
     momentum_params: momentum::Parameters,
     passive_scalar_params: passive_scalar::Parameters,
 ) {
-    let keep = config.keep;
-    let dim = momentum_params.n.len();
-    momentum::post::vtk::momentum_unify(dim, keep);
-    passive_scalar_unify(passive_scalar_params.scalar_name, keep);
+    match cli_args.command {
+        cli::Command::Run { .. } => {}
+        cli::Command::Post { command } => {
+            if let cli::PostCommand::Unify { keep } = command {
+                let dim = momentum_params.n.len();
+                momentum::post::vtk::momentum_unify(dim, keep);
+                passive_scalar_unify(passive_scalar_params.scalar_name, keep);
+            }
+        }
+    }
 }
 
 pub(crate) fn post_vtk_vec(
-    config: Config,
+    cli_args: Cli,
     momentum_params: momentum::Parameters,
     passive_scalar_params_vec: Vec<passive_scalar::Parameters>,
 ) {
-    let n = momentum_params.n.clone();
-    let dim = n.len();
-    let (_, coordinates, node_types) = momentum::post::vtk::read_coordinates_file(dim);
-    let conversion_factor = momentum::ConversionFactor::from(momentum_params);
-    momentum::post::vtk::node_type_vtk(&config, &n, &coordinates, &node_types);
-    momentum::post::vtk::momentum_vtk(&config, &conversion_factor, &n, &coordinates);
-    passive_scalar_vtk_vec(
-        &config,
-        &passive_scalar_params_vec
-            .iter()
-            .map(|passive_scalar_params| passive_scalar_params.scalar_name.to_string())
-            .collect::<Vec<String>>(),
-    );
+    match cli_args.command {
+        cli::Command::Run { .. } => {}
+        cli::Command::Post { command } => {
+            if let cli::PostCommand::Vtk {
+                node_type,
+                physical_data,
+                ..
+            } = command
+            {
+                let n = momentum_params.n.clone();
+                let dim = n.len();
+                let (_, coordinates, node_types) = momentum::post::vtk::read_coordinates_file(dim);
+                let conversion_factor = momentum::ConversionFactor::from(momentum_params);
+                momentum::post::vtk::node_type_vtk(&n, &coordinates, &node_types, node_type);
+                momentum::post::vtk::momentum_vtk(
+                    &conversion_factor,
+                    &n,
+                    &coordinates,
+                    physical_data,
+                );
+                passive_scalar_vtk_vec(
+                    &passive_scalar_params_vec
+                        .iter()
+                        .map(|passive_scalar_params| passive_scalar_params.scalar_name.to_string())
+                        .collect::<Vec<String>>(),
+                );
+            }
+        }
+    }
 }
 
 pub(crate) fn post_unify_vec(
-    config: Config,
+    cli_args: Cli,
     momentum_params: momentum::Parameters,
     passive_scalar_params_vec: Vec<passive_scalar::Parameters>,
 ) {
-    let keep = config.keep;
-    let dim = momentum_params.n.len();
-    momentum::post::vtk::momentum_unify(dim, keep);
-    passive_scalar_unify_vec(
-        &passive_scalar_params_vec
-            .iter()
-            .map(|passive_scalar_params| passive_scalar_params.scalar_name.to_string())
-            .collect::<Vec<String>>(),
-        keep,
-    );
+    match cli_args.command {
+        cli::Command::Run { .. } => {}
+        cli::Command::Post { command } => {
+            if let cli::PostCommand::Unify { keep } = command {
+                let dim = momentum_params.n.len();
+                momentum::post::vtk::momentum_unify(dim, keep);
+                passive_scalar_unify_vec(
+                    &passive_scalar_params_vec
+                        .iter()
+                        .map(|passive_scalar_params| passive_scalar_params.scalar_name.to_string())
+                        .collect::<Vec<String>>(),
+                    keep,
+                );
+            }
+        }
+    }
 }

@@ -133,12 +133,12 @@ fn write_node_type_vtk<P: AsRef<Path>>(
 
 fn write_momentum_vtk<P: AsRef<Path>>(
     path: P,
-    config: &Config,
     conversion_factor: &momentum::ConversionFactor,
     n: &[usize],
     coordinates: &[Vec<Float>],
     densities: &[Float],
     velocities: &[Vec<Float>],
+    physical_data: bool,
 ) -> LbResult<()> {
     let point_data = n.iter().product::<usize>();
     let mut file = File::create(path)?;
@@ -181,7 +181,7 @@ fn write_momentum_vtk<P: AsRef<Path>>(
         )
         .unwrap();
     });
-    if config.physical_data {
+    if physical_data {
         writeln!(file, "SCALARS physical_pressure float 1")?;
         writeln!(file, "LOOKUP_TABLE default")?;
         densities.iter().for_each(|&density| {
@@ -204,19 +204,37 @@ fn write_momentum_vtk<P: AsRef<Path>>(
     Ok(())
 }
 
-pub(crate) fn post_vtk(config: Config, momentum_params: momentum::Parameters) {
-    let n = momentum_params.n.clone();
-    let dim = n.len();
-    let (_, coordinates, node_types) = read_coordinates_file(dim);
-    let conversion_factor = momentum::ConversionFactor::from(momentum_params);
-    node_type_vtk(&config, &n, &coordinates, &node_types);
-    momentum_vtk(&config, &conversion_factor, &n, &coordinates);
+pub(crate) fn post_vtk(cli_args: Cli, momentum_params: momentum::Parameters) {
+    match cli_args.command {
+        cli::Command::Run { .. } => {}
+        cli::Command::Post { command } => {
+            if let cli::PostCommand::Vtk {
+                node_type,
+                physical_data,
+                ..
+            } = command
+            {
+                let n = momentum_params.n.clone();
+                let dim = n.len();
+                let (_, coordinates, node_types) = read_coordinates_file(dim);
+                let conversion_factor = momentum::ConversionFactor::from(momentum_params);
+                node_type_vtk(&n, &coordinates, &node_types, node_type);
+                momentum_vtk(&conversion_factor, &n, &coordinates, physical_data);
+            }
+        }
+    }
 }
 
-pub(crate) fn post_unify(config: Config, momentum_params: momentum::Parameters) {
-    let keep = config.keep;
-    let dim = momentum_params.n.len();
-    momentum_unify(dim, keep);
+pub(crate) fn post_unify(cli_args: Cli, momentum_params: momentum::Parameters) {
+    match cli_args.command {
+        cli::Command::Run { .. } => {}
+        cli::Command::Post { command } => {
+            if let cli::PostCommand::Unify { keep } = command {
+                let dim = momentum_params.n.len();
+                momentum_unify(dim, keep);
+            }
+        }
+    }
 }
 
 fn compute_physical_pressure(
@@ -240,10 +258,10 @@ fn compute_physical_velocity(
 }
 
 pub(crate) fn momentum_vtk(
-    config: &Config,
     conversion_factor: &momentum::ConversionFactor,
     n: &[usize],
     coordinates: &[Vec<Float>],
+    physical_data: bool,
 ) {
     crate::io::collect_time_steps()
         .unwrap_or_else(|e| {
@@ -264,12 +282,12 @@ pub(crate) fn momentum_vtk(
             );
             if let Err(e) = write_momentum_vtk(
                 &path,
-                config,
                 conversion_factor,
                 n,
                 coordinates,
                 &densities,
                 &velocities,
+                physical_data,
             ) {
                 eprintln!("Error writing VTK {path:?}: {e}");
                 std::process::exit(1);
@@ -303,12 +321,12 @@ pub(crate) fn momentum_unify(dim: usize, keep: bool) {
 }
 
 pub(crate) fn node_type_vtk(
-    config: &Config,
     n: &[usize],
     coordinates: &[Vec<Float>],
     node_types: &[NodeType],
+    node_type: bool,
 ) {
-    if config.node_type {
+    if node_type {
         let path = Path::new(crate::io::VTK_PATH).join(crate::io::NODE_TYPE_VTK_FILE);
         println!(
             "Writing {} for node types.\n",

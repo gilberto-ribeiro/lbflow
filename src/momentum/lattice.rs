@@ -20,11 +20,11 @@ pub struct Lattice {
     residuals: RwLock<Residuals>,
     time_step: RwLock<usize>,
     post_functions: Option<Vec<PostFunction>>,
-    config: Config,
+    cli_args: Cli,
 }
 
 impl Lattice {
-    pub(crate) fn new(config: Config, params: Parameters) -> Self {
+    pub(crate) fn new(cli_args: Cli, params: Parameters) -> Self {
         let n = &params.n;
         let initial_density = &params.initial_density.generate(n);
         let initial_velocity = &params.initial_velocity.generate(n);
@@ -201,22 +201,22 @@ impl Lattice {
             residuals: RwLock::new(Residuals::new(0.0, vec![0.0; *d])),
             time_step: RwLock::new(0),
             post_functions: params.post_functions,
-            config,
+            cli_args,
         }
     }
 
     pub(super) fn _test_default(dim: usize) -> Self {
         let parameters = Parameters::_test_default(dim);
-        let config = Config::default();
-        Lattice::new(config, parameters)
+        let cli_args = Cli::default();
+        Lattice::new(cli_args, parameters)
     }
 }
 
 impl Default for Lattice {
     fn default() -> Self {
         let parameters = Parameters::default();
-        let config = Config::default();
-        Lattice::new(config, parameters)
+        let cli_args = Cli::default();
+        Lattice::new(cli_args, parameters)
     }
 }
 
@@ -300,8 +300,8 @@ impl Lattice {
         &self.n
     }
 
-    pub(crate) fn get_config(&self) -> &Config {
-        &self.config
+    pub(crate) fn get_cli_args(&self) -> &Cli {
+        &self.cli_args
     }
 
     fn get_post_functions(&self) -> &Option<Vec<PostFunction>> {
@@ -412,7 +412,7 @@ impl Lattice {
             .all(|&u_x| u_x <= TOLERANCE_VELOCITY);
         let converged_quantities = converged_density && converged_velocity;
         let min_iterations = self.get_time_step() > MIN_ITER;
-        let max_iterations = self.get_time_step() > self.get_config().get_max_iterations();
+        let max_iterations = self.get_time_step() > self.get_cli_args().get_max_iterations();
         (min_iterations && converged_quantities) || max_iterations
     }
 
@@ -428,7 +428,7 @@ impl Lattice {
     }
 
     pub(crate) fn main_steps(&self) {
-        if !self.get_config().freeze_momentum {
+        if !self.get_cli_args().get_freeze_momentum() {
             self.update_density_and_velocity_step();
             self.equilibrium_step();
             self.collision_step();

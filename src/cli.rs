@@ -1,190 +1,139 @@
-use crate::prelude_crate::*;
-use clap::{Arg, Command};
+use clap::{Parser, Subcommand};
 use core_affinity::{get_core_ids, set_for_current};
-use std::num::{NonZero, NonZeroUsize};
+use std::num::NonZeroUsize;
 
 pub(crate) type LbResult<T> = Result<T, Box<dyn std::error::Error>>;
 
-#[derive(Debug)]
-pub(crate) struct Config {
-    pub(crate) mode: Mode,
+const WRITE_DATA: usize = 100;
+const MAX_ITERATIONS: usize = 100_000;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None, propagate_version = true, subcommand_required = true, arg_required_else_help = true)]
+pub(crate) struct Cli {
+    /// The number of threads used (min = 1)
+    #[arg(
+        short,
+        long = "num-threads",
+        value_name = "NTHREADS",
+        default_value = "1",
+        global = true
+    )]
     pub(crate) number_of_threads: NonZeroUsize,
+    /// Set the core affinity
+    #[arg(short = 'a', long = "affinity", global = true)]
     pub(crate) core_affinity: bool,
-    pub(crate) write_data: Option<WriteDataMode>,
-    pub(crate) max_iterations: Option<usize>,
-    pub(crate) freeze_momentum: bool,
-    pub(crate) node_type: bool,
-    pub(crate) physical_data: bool,
-    pub(crate) keep: bool,
+    #[command(subcommand)]
+    pub(crate) command: Command,
 }
 
-impl Default for Config {
+impl Default for Cli {
     fn default() -> Self {
-        Config {
-            mode: Mode::Run,
-            number_of_threads: NonZero::new(1).unwrap(),
+        Self {
+            number_of_threads: NonZeroUsize::new(1).unwrap(),
             core_affinity: false,
-            write_data: None,
-            max_iterations: None,
-            freeze_momentum: false,
-            node_type: false,
-            physical_data: false,
-            keep: false,
+            command: Command::Run {
+                write_data: WRITE_DATA,
+                max_iterations: MAX_ITERATIONS,
+                freeze_momentum: false,
+            },
         }
     }
 }
 
-impl Config {
+impl Cli {
     pub(crate) fn get_number_of_threads(&self) -> usize {
         usize::from(self.number_of_threads)
     }
 
-    pub(crate) fn get_write_data_mode(&self) -> &WriteDataMode {
-        self.write_data.as_ref().unwrap()
+    pub(crate) fn get_write_data_frequency(&self) -> usize {
+        match self.command {
+            Command::Run { write_data, .. } => write_data,
+            Command::Post { .. } => WRITE_DATA,
+        }
     }
 
     pub(crate) fn get_max_iterations(&self) -> usize {
-        self.max_iterations.unwrap()
+        match self.command {
+            Command::Run { max_iterations, .. } => max_iterations,
+            Command::Post { .. } => MAX_ITERATIONS,
+        }
+    }
+
+    pub(crate) fn get_freeze_momentum(&self) -> bool {
+        match self.command {
+            Command::Run {
+                freeze_momentum, ..
+            } => freeze_momentum,
+            Command::Post { .. } => false,
+        }
     }
 }
 
-#[derive(Debug)]
-pub(crate) enum Mode {
-    Run,
-    PostVTK,
-    PostUnify,
+#[derive(Subcommand, Debug)]
+pub(crate) enum Command {
+    /// Run the simulation
+    Run {
+        /// The frequency wich data is written
+        #[arg(
+            short,
+            long = "write-data",
+            value_name = "FREQUENCY",
+            default_value_t = WRITE_DATA,
+        )]
+        write_data: usize,
+        /// The maximum number of iterations
+        #[arg(
+            long = "max-iterations",
+            value_name = "ITER",
+            default_value_t = MAX_ITERATIONS,
+        )]
+        max_iterations: usize,
+        /// Freeze the momentum field calculation
+        #[arg(short, long = "freeze")]
+        freeze_momentum: bool,
+    },
+    /// Post-process the simulation data
+    Post {
+        #[command(subcommand)]
+        command: PostCommand,
+    },
 }
 
-pub(crate) fn get_args() -> LbResult<clap::ArgMatches> {
-    let matches = clap::command!()
-        .propagate_version(true)
-        .subcommand_required(true)
-        .arg_required_else_help(true)
-        .arg(
-            Arg::new("number_of_threads")
-                .short('n')
-                .long("num-threads")
-                .value_name("NTHREADS")
-                .help("The number of threads used (min = 1)")
-                .value_parser(clap::value_parser!(NonZeroUsize))
-                .default_value("1")
-                .global(true),
-        )
-        .arg(
-            Arg::new("core_affinity")
-                .long("affinity")
-                .help("Set the core affinity")
-                .action(clap::ArgAction::SetTrue)
-                .global(true),
-        )
-        .subcommand(
-            Command::new("run")
-                .about("Run the simulation")
-                .arg(
-                    Arg::new("write_data")
-                        .short('w')
-                        .long("write-data")
-                        .value_name("FREQUENCY")
-                        .help("The frequency wich data is written")
-                        .value_parser(clap::value_parser!(usize))
-                        .default_value("100"),
-                )
-                .arg(
-                    Arg::new("max_iterations")
-                        .long("max-iterations")
-                        .value_name("ITER")
-                        .help("The maximum number of iterations")
-                        .value_parser(clap::value_parser!(usize))
-                        .default_value("100000"),
-                )
-                .arg(
-                    Arg::new("freeze_momentum")
-                        .long("freeze")
-                        .help("Freeze the momentum field calculation")
-                        .action(clap::ArgAction::SetTrue),
-                ),
-        )
-        .subcommand(
-            Command::new("post")
-                .about("Post-process the simulation data")
-                .subcommand(
-                    Command::new("vtk")
-                        .about("Write VTK files for visualization in Paraview")
-                        .arg(
-                            Arg::new("physical_data")
-                                .long("physical")
-                                .help("If the data is written in physical units")
-                                .action(clap::ArgAction::SetTrue),
-                        )
-                        .arg(
-                            Arg::new("node_type")
-                                .long("node-type")
-                                .help("Write node_type.vtk file")
-                                .action(clap::ArgAction::SetTrue),
-                        ),
-                )
-                .subcommand(
-                    Command::new("unify")
-                        .about(
-                            "Unify the parallel output files into a single file for each time step",
-                        )
-                        .arg(
-                            Arg::new("keep")
-                                .short('k')
-                                .long("keep")
-                                .help("Keep the intermediate files after unification")
-                                .action(clap::ArgAction::SetTrue),
-                        ),
-                ),
-        )
-        .get_matches();
-    Ok(matches)
-}
-
-pub(crate) fn parse_matches(matches: &clap::ArgMatches) -> LbResult<Config> {
-    let number_of_threads = *matches
-        .get_one::<NonZeroUsize>("number_of_threads")
-        .expect("Has 1 as default");
-    let core_affinity = matches.get_flag("core_affinity");
-    match matches.subcommand() {
-        Some(("run", sub_m)) => {
-            let frequency = *sub_m.get_one::<usize>("write_data").unwrap();
-            let cfg = Config {
-                mode: Mode::Run,
-                number_of_threads,
-                core_affinity,
-                write_data: Some(WriteDataMode::Frequency(frequency)),
-                max_iterations: sub_m.get_one::<usize>("max_iterations").cloned(),
-                freeze_momentum: sub_m.get_flag("freeze_momentum"),
-                ..Default::default()
-            };
-            Ok(cfg)
+impl Default for Command {
+    fn default() -> Self {
+        Self::Run {
+            write_data: 100,
+            max_iterations: 100_000,
+            freeze_momentum: false,
         }
-        Some(("post", sub_m)) => match sub_m.subcommand() {
-            Some(("vtk", sub_m)) => {
-                let cfg = Config {
-                    mode: Mode::PostVTK,
-                    number_of_threads,
-                    core_affinity,
-                    node_type: sub_m.get_flag("node_type"),
-                    physical_data: sub_m.get_flag("physical_data"),
-                    ..Default::default()
-                };
-                Ok(cfg)
-            }
-            Some(("unify", sub_m)) => {
-                let cfg = Config {
-                    mode: Mode::PostUnify,
-                    number_of_threads,
-                    core_affinity,
-                    keep: sub_m.get_flag("keep"),
-                    ..Default::default()
-                };
-                Ok(cfg)
-            }
-            _ => unreachable!("At least one subcommand is required: .subcommand_required(true)"),
-        },
-        _ => unreachable!("At least one subcommand is required: .subcommand_required(true)"),
+    }
+}
+
+#[derive(Subcommand, Debug)]
+pub(crate) enum PostCommand {
+    /// Unify the parallel output files into a single file for each time step
+    Unify {
+        /// Keep the intermediate files after unification
+        #[arg(short, long)]
+        keep: bool,
+    },
+    /// Write VTK files for visualization in Paraview
+    Vtk {
+        /// Write node_type.vtk file
+        #[arg(long = "node-type")]
+        node_type: bool,
+        /// If the data is written in physical units
+        #[arg(long = "physical")]
+        physical_data: bool,
+    },
+}
+
+impl Default for PostCommand {
+    fn default() -> Self {
+        Self::Vtk {
+            node_type: false,
+            physical_data: false,
+        }
     }
 }
 

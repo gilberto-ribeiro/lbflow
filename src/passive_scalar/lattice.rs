@@ -334,7 +334,7 @@ impl<'a> Lattice<'a> {
         let max_iterations = self.get_momentum_lattice().get_time_step()
             > self
                 .get_momentum_lattice()
-                .get_config()
+                .get_cli_args()
                 .get_max_iterations();
         (min_iterations && converged_quantities) || max_iterations
     }
@@ -428,7 +428,7 @@ impl<'a> LatticeVec<'a> {
         let max_iterations = self.get_momentum_lattice().get_time_step()
             > self
                 .get_momentum_lattice()
-                .get_config()
+                .get_cli_args()
                 .get_max_iterations();
         (min_iterations && converged_quantities) || max_iterations
     }

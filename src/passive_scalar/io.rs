@@ -31,30 +31,18 @@ impl<'a> Lattice<'a> {
     }
 
     pub(super) fn write_data(&self) {
-        match self
+        let n = self
             .get_momentum_lattice()
-            .get_config()
-            .get_write_data_mode()
+            .get_cli_args()
+            .get_write_data_frequency();
+        if self
+            .get_momentum_lattice()
+            .get_time_step()
+            .is_multiple_of(n)
+            || self.get_momentum_lattice().get_time_step() == 0
         {
-            WriteDataMode::Frequency(n) => {
-                if self
-                    .get_momentum_lattice()
-                    .get_time_step()
-                    .is_multiple_of(*n)
-                    || self.get_momentum_lattice().get_time_step() == 0
-                {
-                    println!();
-                    self.write_data_from_steps();
-                }
-            }
-            WriteDataMode::ListOfSteps(list) => {
-                if list.contains(&self.get_momentum_lattice().get_time_step())
-                    || self.get_momentum_lattice().get_time_step() == 0
-                {
-                    println!();
-                    self.write_data_from_steps();
-                }
-            }
+            println!();
+            self.write_data_from_steps();
         }
     }
 
@@ -91,7 +79,7 @@ impl<'a> Lattice<'a> {
     {
         let number_of_threads = self
             .get_momentum_lattice()
-            .get_config()
+            .get_cli_args()
             .get_number_of_threads();
         let step_path = Arc::new(step_path.as_ref().to_path_buf());
         if number_of_threads == 1 {

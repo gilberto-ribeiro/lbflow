@@ -1,7 +1,7 @@
 pub(crate) use crate::NodeLike;
-pub(crate) use crate::cli::{Config, LbResult};
+pub(crate) use crate::cli::{self, Cli, LbResult};
 pub(crate) use crate::constants::*;
-pub(crate) use crate::io::WriteDataMode;
+
 pub(crate) use crate::kernel;
 pub(crate) use crate::momentum::multiphase;
 pub(crate) use crate::prelude::*;

@@ -9,6 +9,7 @@ use crate::cli;
 use crate::prelude_crate::*;
 use bc::BoundaryCondition;
 use bc::InnerBoundaryCondition;
+use clap::Parser;
 pub(crate) use lattice::Lattice;
 pub(crate) use node::Node;
 
@@ -69,10 +70,10 @@ impl _ConversionFactor {
 
 // ----------------------------------------------------------------------------- FUNCTIONS
 
-fn run(config: Config, momentum_params: momentum::Parameters, passive_scalar_params: Parameters) {
+fn run(cli_args: Cli, momentum_params: momentum::Parameters, passive_scalar_params: Parameters) {
     momentum::io::case_setup(&momentum_params);
 
-    let m_lat = Arc::new(momentum::Lattice::new(config, momentum_params));
+    let m_lat = Arc::new(momentum::Lattice::new(cli_args, momentum_params));
     let ps_lat = Lattice::new(passive_scalar_params, Arc::clone(&m_lat));
 
     m_lat.write_coordinates().unwrap_or_else(|e| {
@@ -111,37 +112,33 @@ fn run(config: Config, momentum_params: momentum::Parameters, passive_scalar_par
     }
 }
 
-pub fn solve(momentum_parameters: momentum::Parameters, passive_scalar_parameters: Parameters) {
-    let config = match cli::get_args().and_then(|matches| cli::parse_matches(&matches)) {
-        Ok(cfg) => cfg,
-        Err(e) => {
-            eprintln!("{e}");
-            std::process::exit(1);
-        }
-    };
+pub fn solve(momentum_params: momentum::Parameters, passive_scalar_params: Parameters) {
+    let cli_args = Cli::parse();
 
-    let number_of_threads = usize::from(config.number_of_threads);
-    crate::cli::init_global_pool(number_of_threads, config.core_affinity);
+    let number_of_threads = cli_args.get_number_of_threads();
+    cli::init_global_pool(number_of_threads, cli_args.core_affinity);
 
-    match config.mode {
-        cli::Mode::Run => run(config, momentum_parameters, passive_scalar_parameters),
-        cli::Mode::PostVTK => {
-            post::vtk::post_vtk(config, momentum_parameters, passive_scalar_parameters)
-        }
-        cli::Mode::PostUnify => {
-            post::vtk::post_unify(config, momentum_parameters, passive_scalar_parameters)
-        }
+    match &cli_args.command {
+        cli::Command::Run { .. } => run(cli_args, momentum_params, passive_scalar_params),
+        cli::Command::Post { command } => match command {
+            cli::PostCommand::Vtk { .. } => {
+                post::vtk::post_vtk(cli_args, momentum_params, passive_scalar_params)
+            }
+            cli::PostCommand::Unify { .. } => {
+                post::vtk::post_unify(cli_args, momentum_params, passive_scalar_params)
+            }
+        },
     }
 }
 
 fn run_vec(
-    config: Config,
+    cli_args: Cli,
     momentum_params: momentum::Parameters,
     passive_scalar_params_vec: Vec<Parameters>,
 ) {
     momentum::io::case_setup(&momentum_params);
 
-    let m_lat = Arc::new(momentum::Lattice::new(config, momentum_params));
+    let m_lat = Arc::new(momentum::Lattice::new(cli_args, momentum_params));
     let ps_lat_vec = lattice::LatticeVec::new(passive_scalar_params_vec, Arc::clone(&m_lat));
 
     m_lat.write_coordinates().unwrap_or_else(|e| {
@@ -181,27 +178,23 @@ fn run_vec(
 }
 
 pub fn solve_vec(
-    momentum_parameters: momentum::Parameters,
-    passive_scalar_parameters_vec: Vec<Parameters>,
+    momentum_params: momentum::Parameters,
+    passive_scalar_params_vec: Vec<Parameters>,
 ) {
-    let config = match cli::get_args().and_then(|matches| cli::parse_matches(&matches)) {
-        Ok(cfg) => cfg,
-        Err(e) => {
-            eprintln!("{e}");
-            std::process::exit(1);
-        }
-    };
+    let cli_args = Cli::parse();
 
-    let number_of_threads = usize::from(config.number_of_threads);
-    crate::cli::init_global_pool(number_of_threads, config.core_affinity);
+    let number_of_threads = cli_args.get_number_of_threads();
+    cli::init_global_pool(number_of_threads, cli_args.core_affinity);
 
-    match config.mode {
-        cli::Mode::Run => run_vec(config, momentum_parameters, passive_scalar_parameters_vec),
-        cli::Mode::PostVTK => {
-            post::vtk::post_vtk_vec(config, momentum_parameters, passive_scalar_parameters_vec)
-        }
-        cli::Mode::PostUnify => {
-            post::vtk::post_unify_vec(config, momentum_parameters, passive_scalar_parameters_vec)
-        }
+    match &cli_args.command {
+        cli::Command::Run { .. } => run_vec(cli_args, momentum_params, passive_scalar_params_vec),
+        cli::Command::Post { command } => match command {
+            cli::PostCommand::Vtk { .. } => {
+                post::vtk::post_vtk_vec(cli_args, momentum_params, passive_scalar_params_vec)
+            }
+            cli::PostCommand::Unify { .. } => {
+                post::vtk::post_unify_vec(cli_args, momentum_params, passive_scalar_params_vec)
+            }
+        },
     }
 }

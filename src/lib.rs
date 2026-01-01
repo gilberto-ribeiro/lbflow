@@ -166,3 +166,26 @@ pub(crate) trait NodeLike {
 
     fn update_shallow_node(&self);
 }
+
+pub fn solve(
+    momentum_params: momentum::Parameters,
+    passive_scalar_params: Option<Vec<passive_scalar::Parameters>>,
+) {
+    match passive_scalar_params {
+        None => {
+            momentum::solve(momentum_params);
+        }
+        Some(passive_scalar_params_vec) => match passive_scalar_params_vec.len() {
+            0 => {
+                panic!("Must provide at least one passive_scalar_parameters inside the vector.");
+            }
+            // 1 => {
+            //     let passive_scalar_params = &passive_scalar_params_vec[0];
+            //     passive_scalar::solve(momentum_params, passive_scalar_params);
+            // }
+            _ => {
+                passive_scalar::solve_vec(momentum_params, passive_scalar_params_vec);
+            }
+        },
+    }
+}

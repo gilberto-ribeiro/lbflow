@@ -12,6 +12,7 @@ pub(crate) mod post;
 use crate::cli;
 use crate::prelude_crate::*;
 use bc::BoundaryCondition;
+use clap::Parser;
 pub(crate) use lattice::Lattice;
 pub(crate) use node::Node;
 pub(crate) use post::PostFunction;
@@ -258,10 +259,10 @@ impl Default for ConversionFactor {
 
 // ----------------------------------------------------------------------------- FUNCTIONS
 
-fn run(config: Config, momentum_params: Parameters) {
+fn run(cli_args: Cli, momentum_params: Parameters) {
     io::case_setup(&momentum_params);
 
-    let lat = Lattice::new(config, momentum_params);
+    let lat = Lattice::new(cli_args, momentum_params);
 
     lat.write_coordinates().unwrap_or_else(|e| {
         eprintln! {"Error while writing the coordinates file: {e}"};
@@ -293,20 +294,16 @@ fn run(config: Config, momentum_params: Parameters) {
 }
 
 pub fn solve(momentum_params: momentum::Parameters) {
-    let config = match cli::get_args().and_then(|matches| cli::parse_matches(&matches)) {
-        Ok(cfg) => cfg,
-        Err(e) => {
-            eprintln!("{e}");
-            std::process::exit(1);
-        }
-    };
+    let cli_args = Cli::parse();
 
-    let number_of_threads = usize::from(config.number_of_threads);
-    crate::cli::init_global_pool(number_of_threads, config.core_affinity);
+    let number_of_threads = cli_args.get_number_of_threads();
+    crate::cli::init_global_pool(number_of_threads, cli_args.core_affinity);
 
-    match config.mode {
-        cli::Mode::Run => run(config, momentum_params),
-        cli::Mode::PostVTK => post::vtk::post_vtk(config, momentum_params),
-        cli::Mode::PostUnify => post::vtk::post_unify(config, momentum_params),
+    match &cli_args.command {
+        cli::Command::Run { .. } => run(cli_args, momentum_params),
+        cli::Command::Post { command } => match command {
+            cli::PostCommand::Vtk { .. } => post::vtk::post_vtk(cli_args, momentum_params),
+            cli::PostCommand::Unify { .. } => post::vtk::post_unify(cli_args, momentum_params),
+        },
     }
 }
