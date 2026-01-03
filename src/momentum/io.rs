@@ -113,7 +113,7 @@ impl Lattice {
     where
         P: AsRef<Path>,
     {
-        let number_of_threads = self.get_cli_args().get_number_of_threads();
+        let number_of_threads = self.get_cli_args().get_num_threads();
         let step_path = Arc::new(step_path.as_ref().to_path_buf());
         if number_of_threads == 1 {
             let path = step_path.join(crate::io::DENSITY_FILE);
@@ -147,7 +147,7 @@ impl Lattice {
     where
         P: AsRef<Path>,
     {
-        let number_of_threads = self.get_cli_args().get_number_of_threads();
+        let number_of_threads = self.get_cli_args().get_num_threads();
         let step_path = Arc::new(step_path.as_ref().to_path_buf());
         let mut header = String::from("velocity_x,velocity_y");
         if *self.get_d() == 3 {

@@ -115,8 +115,13 @@ fn run(cli_args: Cli, momentum_params: momentum::Parameters, passive_scalar_para
 pub fn solve(momentum_params: momentum::Parameters, passive_scalar_params: Parameters) {
     let cli_args = Cli::parse();
 
-    let number_of_threads = cli_args.get_number_of_threads();
-    cli::init_global_pool(number_of_threads, cli_args.core_affinity);
+    cli::init_global_pool(
+        cli_args.get_num_threads(),
+        cli_args.pin,
+        cli_args.core_start,
+        cli_args.core_count,
+        cli_args.cores_list.as_deref(),
+    );
 
     match &cli_args.command {
         cli::Command::Run { .. } => run(cli_args, momentum_params, passive_scalar_params),
@@ -183,8 +188,13 @@ pub fn solve_vec(
 ) {
     let cli_args = Cli::parse();
 
-    let number_of_threads = cli_args.get_number_of_threads();
-    cli::init_global_pool(number_of_threads, cli_args.core_affinity);
+    cli::init_global_pool(
+        cli_args.get_num_threads(),
+        cli_args.pin,
+        cli_args.core_start,
+        cli_args.core_count,
+        cli_args.cores_list.as_deref(),
+    );
 
     match &cli_args.command {
         cli::Command::Run { .. } => run_vec(cli_args, momentum_params, passive_scalar_params_vec),

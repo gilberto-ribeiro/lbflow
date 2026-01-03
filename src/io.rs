@@ -31,7 +31,7 @@ pub struct ResidualsInfo {
 }
 
 #[derive(Debug)]
-pub enum WriteDataMode {
+pub enum _WriteDataMode {
     Frequency(usize),
     ListOfSteps(Vec<usize>),
 }

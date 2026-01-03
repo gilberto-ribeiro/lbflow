@@ -77,10 +77,7 @@ impl<'a> Lattice<'a> {
     where
         P: AsRef<Path>,
     {
-        let number_of_threads = self
-            .get_momentum_lattice()
-            .get_cli_args()
-            .get_number_of_threads();
+        let number_of_threads = self.get_momentum_lattice().get_cli_args().get_num_threads();
         let step_path = Arc::new(step_path.as_ref().to_path_buf());
         if number_of_threads == 1 {
             let path = step_path.join(self.get_scalar_name().to_string() + ".csv");
