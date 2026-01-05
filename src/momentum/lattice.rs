@@ -97,6 +97,7 @@ impl Lattice {
                     node_type,
                     index,
                     coordinates,
+                    cli_args.get_freeze_momentum(),
                     Arc::clone(&node_parameters),
                 ))
             })
@@ -124,8 +125,8 @@ impl Lattice {
         });
 
         println!("Setting up neighbor nodes for each node in the lattice...\n");
-        nodes.iter().enumerate().for_each(|(n_i, node)| {
-            crate::io::progress_bar(n_i, num_nodes);
+        nodes.iter().enumerate().for_each(|(_n_i, node)| {
+            // crate::io::progress_bar(n_i, num_nodes);
             let index = node.get_index();
             let neighbor_nodes = c
                 .iter()
@@ -435,6 +436,7 @@ impl Lattice {
             self.streaming_step();
             self.inner_bounce_back_step();
             self.boundary_conditions_step();
+            self.write_data();
         }
     }
 }

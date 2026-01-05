@@ -205,6 +205,7 @@ fn write_momentum_vtk<P: AsRef<Path>>(
 }
 
 pub(crate) fn post_vtk(cli_args: Cli, momentum_params: momentum::Parameters) {
+    let freeze_momentum = cli_args.get_freeze_momentum();
     match cli_args.command {
         cli::Command::Run { .. } => {}
         cli::Command::Post { command } => {
@@ -217,21 +218,26 @@ pub(crate) fn post_vtk(cli_args: Cli, momentum_params: momentum::Parameters) {
                 let n = momentum_params.n.clone();
                 let dim = n.len();
                 let (_, coordinates, node_types) = read_coordinates_file(dim);
-                let conversion_factor = momentum::ConversionFactor::from(momentum_params);
                 node_type_vtk(&n, &coordinates, &node_types, node_type);
-                momentum_vtk(&conversion_factor, &n, &coordinates, physical_data);
+                if !freeze_momentum {
+                    let conversion_factor = momentum::ConversionFactor::from(momentum_params);
+                    momentum_vtk(&conversion_factor, &n, &coordinates, physical_data);
+                };
             }
         }
     }
 }
 
 pub(crate) fn post_unify(cli_args: Cli, momentum_params: momentum::Parameters) {
+    let freeze_momentum = cli_args.get_freeze_momentum();
     match cli_args.command {
         cli::Command::Run { .. } => {}
         cli::Command::Post { command } => {
             if let cli::PostCommand::Unify { keep } = command {
-                let dim = momentum_params.n.len();
-                momentum_unify(dim, keep);
+                if !freeze_momentum {
+                    let dim = momentum_params.n.len();
+                    momentum_unify(dim, keep);
+                };
             }
         }
     }
@@ -327,11 +333,10 @@ pub(crate) fn node_type_vtk(
     node_type: bool,
 ) {
     if node_type {
-        let path = Path::new(crate::io::VTK_PATH).join(crate::io::NODE_TYPE_VTK_FILE);
-        println!(
-            "Writing {} for node types.\n",
-            crate::io::NODE_TYPE_VTK_FILE.bold().yellow()
-        );
+        let case_name = crate::io::get_case_name();
+        let file_name = format!("{case_name}_node_type.vtk");
+        let path = Path::new(crate::io::VTK_PATH).join(&file_name);
+        println!("Writing {} for node types.\n", file_name.bold().yellow());
         if let Err(e) = write_node_type_vtk(&path, n, coordinates, node_types) {
             eprintln!("Error writing VTK {path:?}: {e}");
             std::process::exit(1);

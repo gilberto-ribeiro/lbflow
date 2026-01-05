@@ -17,7 +17,6 @@ pub(crate) const COORDINATES_FILE: &str = "coordinates.csv";
 pub(crate) const DENSITY_FILE: &str = "density.csv";
 pub(crate) const VELOCITY_FILE: &str = "velocity.csv";
 pub(crate) const RESIDUALS_FILE: &str = "residuals.csv";
-pub(crate) const NODE_TYPE_VTK_FILE: &str = "node_type.vtk";
 pub(crate) const RESIDUALS_GRAPH_FILE: &str = "gr_residuals.gp";
 pub(crate) const LIVE_RESIDUALS_GRAPH_FILE: &str = "live_residuals.gp";
 pub(crate) const BOUNCE_BACK_MAP_FILE: &str = "map.xyz";
@@ -68,6 +67,7 @@ pub(crate) fn read_bounce_back_map() -> Vec<NodeType> {
     parse_node_type_from_string(&data)
 }
 
+#[allow(dead_code)]
 pub(crate) fn progress_bar(current: usize, total: usize) {
     let current = current + 1;
     let percentage = current as Float / total as Float;

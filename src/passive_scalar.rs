@@ -90,9 +90,6 @@ fn run(cli_args: Cli, momentum_params: momentum::Parameters, passive_scalar_para
         ps_lat.main_steps();
         ps_lat.compute_lattice_residuals();
 
-        m_lat.write_data();
-        ps_lat.write_data();
-
         m_lat.compute_post_processing();
 
         crate::io::print_residuals(&ps_lat.get_residuals_info());
@@ -159,9 +156,6 @@ fn run_vec(
 
         ps_lat_vec.main_steps();
         ps_lat_vec.compute_lattice_residuals();
-
-        m_lat.write_data();
-        ps_lat_vec.write_data();
 
         m_lat.compute_post_processing();
 

@@ -103,8 +103,8 @@ impl<'a> Lattice<'a> {
         };
 
         println!("Setting up neighbor nodes for each node in the lattice...\n");
-        nodes.iter().enumerate().for_each(|(n_i, node)| {
-            crate::io::progress_bar(n_i, number_of_nodes);
+        nodes.iter().enumerate().for_each(|(_n_i, node)| {
+            // crate::io::progress_bar(n_i, number_of_nodes);
             let index = node.get_index();
             let neighbor_nodes = c
                 .iter()
@@ -346,6 +346,7 @@ impl<'a> Lattice<'a> {
         self.streaming_step();
         self.inner_boundary_condition_step();
         self.boundary_conditions_step();
+        self.write_data();
     }
 }
 
@@ -396,12 +397,6 @@ impl<'a> LatticeVec<'a> {
     pub(super) fn compute_lattice_residuals(&self) {
         self.passive_scalar_lattices.iter().for_each(|lattice| {
             lattice.compute_lattice_residuals();
-        });
-    }
-
-    pub(super) fn write_data(&self) {
-        self.passive_scalar_lattices.iter().for_each(|lattice| {
-            lattice.write_data();
         });
     }
 

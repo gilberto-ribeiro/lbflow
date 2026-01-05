@@ -274,7 +274,6 @@ fn run(cli_args: Cli, momentum_params: Parameters) {
         lat.main_steps();
         lat.compute_lattice_residuals();
 
-        lat.write_data();
         lat.compute_post_processing();
 
         crate::io::print_residuals(&lat.get_residuals_info());

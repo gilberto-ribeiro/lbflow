@@ -40,9 +40,9 @@ impl Parameters {
 pub struct Node {
     density: RwLock<Float>,
     velocity: RwLock<Vec<Float>>,
-    f: RwLock<Vec<Float>>,
-    f_eq: RwLock<Vec<Float>>,
-    f_star: RwLock<Vec<Float>>,
+    f: RwLock<Option<Vec<Float>>>,
+    f_eq: RwLock<Option<Vec<Float>>>,
+    f_star: RwLock<Option<Vec<Float>>>,
     pub(super) phi: RwLock<Option<Float>>,
     force: Arc<Option<Box<dyn Fn(&Node) -> Vec<Float> + Send + Sync>>>,
     pub(super) multiphase_parameters: Arc<Option<multiphase::Parameters>>,
@@ -81,15 +81,22 @@ impl Node {
         node_type: NodeType,
         index: Vec<usize>,
         coordinates: Vec<Float>,
+        freeze_momentum: bool,
         parameters: Arc<Parameters>,
     ) -> Self {
         let q = parameters.velocity_set_params.q;
+        let (f, f_eq, f_star) = if freeze_momentum {
+            (None, None, None)
+        } else {
+            (Some(vec![0.0; q]), Some(vec![0.0; q]), Some(vec![0.0; q]))
+        };
+        let shallow_velocity = velocity.clone();
         Node {
             density: RwLock::new(density),
-            velocity: RwLock::new(velocity.clone()),
-            f: RwLock::new(vec![0.0; q]),
-            f_eq: RwLock::new(vec![0.0; q]),
-            f_star: RwLock::new(vec![0.0; q]),
+            velocity: RwLock::new(velocity),
+            f: RwLock::new(f),
+            f_eq: RwLock::new(f_eq),
+            f_star: RwLock::new(f_star),
             phi: RwLock::new(None),
             force,
             multiphase_parameters: Arc::clone(&parameters.multiphase_params),
@@ -101,7 +108,7 @@ impl Node {
             scalar_nodes: RwLock::new(None),
             bounce_back_neighbor_nodes: RwLock::new(None),
             bounce_back_node_status: RwLock::new(false),
-            shallow_node: ShallowNode::new(density, velocity.clone()),
+            shallow_node: ShallowNode::new(density, shallow_velocity),
         }
     }
 
@@ -114,6 +121,7 @@ impl Node {
                 Fluid,
                 vec![3, 7],
                 vec![0.035, 0.075],
+                false,
                 Arc::new(Parameters::test_default(2)),
             ),
             3 => Node::new(
@@ -123,6 +131,7 @@ impl Node {
                 Fluid,
                 vec![3, 5, 7],
                 vec![0.035, 0.055, 0.075],
+                false,
                 Arc::new(Parameters::test_default(3)),
             ),
             _ => panic!("Unsupported dimension: {dim}"),
@@ -139,6 +148,7 @@ impl Default for Node {
             Fluid,
             vec![0, 0],
             vec![0.0, 0.0],
+            false,
             Arc::new(Parameters::default()),
         )
     }
@@ -156,30 +166,42 @@ impl NodeLike for Node {
     /// assert_eq!(&node.get_f(), &[0.0; 9]);
     /// ```
     fn get_f(&self) -> Vec<Float> {
-        self.f.read().unwrap().clone()
+        self.f
+            .read()
+            .unwrap()
+            .as_ref()
+            .expect("Node::get_f: f is None (momentum frozen or not initialized)")
+            .clone()
     }
 
     fn set_f(&self, f: Vec<Float>) {
-        let mut f_guard = self.f.write().unwrap();
-        *f_guard = f.to_vec();
+        *self.f.write().unwrap() = Some(f);
     }
 
     fn get_f_eq(&self) -> Vec<Float> {
-        self.f_eq.read().unwrap().clone()
+        self.f_eq
+            .read()
+            .unwrap()
+            .as_ref()
+            .expect("Node::get_f_eq: f_eq is None (momentum frozen or not initialized)")
+            .clone()
     }
 
     fn set_f_eq(&self, f_eq: Vec<Float>) {
-        let mut f_eq_guard = self.f_eq.write().unwrap();
-        *f_eq_guard = f_eq.to_vec();
+        *self.f_eq.write().unwrap() = Some(f_eq);
     }
 
     fn get_f_star(&self) -> Vec<Float> {
-        self.f_star.read().unwrap().clone()
+        self.f_star
+            .read()
+            .unwrap()
+            .as_ref()
+            .expect("Node::get_f_star: f_star is None (momentum frozen or not initialized)")
+            .clone()
     }
 
     fn set_f_star(&self, f_star: Vec<Float>) {
-        let mut f_star_guard = self.f_star.write().unwrap();
-        *f_star_guard = f_star.to_vec();
+        *self.f_star.write().unwrap() = Some(f_star);
     }
 
     fn get_value(&self) -> Float {
@@ -254,8 +276,7 @@ impl NodeLike for Node {
     }
 
     fn set_neighbor_nodes(&self, neighbor_nodes: HashMap<usize, Arc<Node>>) {
-        let mut neighbor_nodes_guard = self.neighbor_nodes.write().unwrap();
-        *neighbor_nodes_guard = Some(neighbor_nodes);
+        *self.neighbor_nodes.write().unwrap() = Some(neighbor_nodes);
     }
 
     fn get_bounce_back_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
@@ -271,8 +292,7 @@ impl NodeLike for Node {
         &self,
         bounce_back_neighbor_nodes: HashMap<usize, Arc<Node>>,
     ) {
-        let mut bounce_back_neighbor_nodes_guard = self.bounce_back_neighbor_nodes.write().unwrap();
-        *bounce_back_neighbor_nodes_guard = Some(bounce_back_neighbor_nodes);
+        *self.bounce_back_neighbor_nodes.write().unwrap() = Some(bounce_back_neighbor_nodes);
     }
 
     fn is_bounce_back_node(&self) -> bool {
@@ -334,13 +354,35 @@ impl Node {
     }
 
     fn set_density(&self, density: Float) {
-        let mut density_guard = self.density.write().unwrap();
-        *density_guard = density;
+        *self.density.write().unwrap() = density;
     }
 
     fn set_velocity(&self, velocity: Vec<Float>) {
-        let mut velocity_guard = self.velocity.write().unwrap();
-        *velocity_guard = velocity;
+        *self.velocity.write().unwrap() = velocity;
+    }
+
+    fn unset_f(&self) {
+        *self.f.write().unwrap() = None;
+    }
+
+    fn unset_f_eq(&self) {
+        *self.f_eq.write().unwrap() = None;
+    }
+
+    fn set_f_star(&self, f_star: Vec<Float>) {
+        *self.f_star.write().unwrap() = Some(f_star);
+    }
+
+    fn has_momentum_populations(&self) -> bool {
+        self.f.read().unwrap().is_some()
+            && self.f_eq.read().unwrap().is_some()
+            && self.f_star.read().unwrap().is_some()
+    }
+
+    fn freeze_momentum_storage(&self) {
+        *self.f.write().unwrap() = None;
+        *self.f_eq.write().unwrap() = None;
+        *self.f_star.write().unwrap() = None;
     }
 
     fn get_force(&self) -> Option<Vec<Float>> {
@@ -451,8 +493,7 @@ impl ShallowNode {
     }
 
     fn set_density(&self, density: Float) {
-        let mut density_guard = self.density.write().unwrap();
-        *density_guard = density;
+        *self.density.write().unwrap() = density;
     }
 
     fn get_velocity(&self) -> Vec<Float> {
@@ -460,8 +501,7 @@ impl ShallowNode {
     }
 
     fn set_velocity(&self, velocity: Vec<Float>) {
-        let mut velocity_guard = self.velocity.write().unwrap();
-        *velocity_guard = velocity;
+        *self.velocity.write().unwrap() = velocity;
     }
 }
 

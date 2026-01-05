@@ -160,8 +160,7 @@ impl NodeLike for Node {
     }
 
     fn set_neighbor_nodes(&self, neighbor_nodes: HashMap<usize, Arc<Node>>) {
-        let mut neighbor_nodes_guard = self.neighbor_nodes.write().unwrap();
-        *neighbor_nodes_guard = Some(neighbor_nodes);
+        *self.neighbor_nodes.write().unwrap() = Some(neighbor_nodes);
     }
 
     fn get_bounce_back_neighbor_nodes(&self) -> HashMap<usize, Arc<Node>> {
@@ -177,8 +176,7 @@ impl NodeLike for Node {
         &self,
         bounce_back_neighbor_nodes: HashMap<usize, Arc<Node>>,
     ) {
-        let mut bounce_back_neighbor_nodes_guard = self.bounce_back_neighbor_nodes.write().unwrap();
-        *bounce_back_neighbor_nodes_guard = Some(bounce_back_neighbor_nodes);
+        *self.bounce_back_neighbor_nodes.write().unwrap() = Some(bounce_back_neighbor_nodes);
     }
 
     fn is_bounce_back_node(&self) -> bool {
@@ -230,8 +228,7 @@ impl Node {
     }
 
     fn set_scalar_value(&self, scalar_value: Float) {
-        let mut scalar_value_guard = self.scalar_value.write().unwrap();
-        *scalar_value_guard = scalar_value;
+        *self.scalar_value.write().unwrap() = scalar_value;
     }
 
     pub fn get_g(&self) -> Vec<Float> {
@@ -239,8 +236,7 @@ impl Node {
     }
 
     pub(super) fn set_g(&self, g: Vec<Float>) {
-        let mut g_guard = self.g.write().unwrap();
-        *g_guard = g.to_vec();
+        *self.g.write().unwrap() = g;
     }
 
     pub(super) fn get_g_eq(&self) -> Vec<Float> {
@@ -248,8 +244,7 @@ impl Node {
     }
 
     pub(super) fn set_g_eq(&self, g_eq: Vec<Float>) {
-        let mut g_eq_guard = self.g_eq.write().unwrap();
-        *g_eq_guard = g_eq.to_vec();
+        *self.g_eq.write().unwrap() = g_eq;
     }
 
     pub(super) fn get_g_star(&self) -> Vec<Float> {
@@ -257,8 +252,7 @@ impl Node {
     }
 
     pub(super) fn set_g_star(&self, g_star: Vec<Float>) {
-        let mut g_star_guard = self.g_star.write().unwrap();
-        *g_star_guard = g_star.to_vec();
+        *self.g_star.write().unwrap() = g_star;
     }
 
     fn get_source_value(&self) -> Option<Float> {
@@ -325,7 +319,6 @@ impl ShallowNode {
     }
 
     fn set_scalar_value(&self, scalar_value: Float) {
-        let mut scalar_guard = self.scalar_value.write().unwrap();
-        *scalar_guard = scalar_value;
+        *self.scalar_value.write().unwrap() = scalar_value;
     }
 }

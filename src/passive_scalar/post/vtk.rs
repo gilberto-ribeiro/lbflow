@@ -100,6 +100,7 @@ pub(crate) fn post_vtk(
     momentum_params: momentum::Parameters,
     passive_scalar_params: passive_scalar::Parameters,
 ) {
+    let freeze_momentum = cli_args.get_freeze_momentum();
     match cli_args.command {
         cli::Command::Run { .. } => {}
         cli::Command::Post { command } => {
@@ -112,14 +113,16 @@ pub(crate) fn post_vtk(
                 let n = momentum_params.n.clone();
                 let dim = n.len();
                 let (_, coordinates, node_types) = momentum::post::vtk::read_coordinates_file(dim);
-                let conversion_factor = momentum::ConversionFactor::from(momentum_params);
                 momentum::post::vtk::node_type_vtk(&n, &coordinates, &node_types, node_type);
-                momentum::post::vtk::momentum_vtk(
-                    &conversion_factor,
-                    &n,
-                    &coordinates,
-                    physical_data,
-                );
+                if !freeze_momentum {
+                    let conversion_factor = momentum::ConversionFactor::from(momentum_params);
+                    momentum::post::vtk::momentum_vtk(
+                        &conversion_factor,
+                        &n,
+                        &coordinates,
+                        physical_data,
+                    );
+                };
                 passive_scalar_vtk(passive_scalar_params.scalar_name);
             }
         }
@@ -131,12 +134,15 @@ pub(crate) fn post_unify(
     momentum_params: momentum::Parameters,
     passive_scalar_params: passive_scalar::Parameters,
 ) {
+    let freeze_momentum = cli_args.get_freeze_momentum();
     match cli_args.command {
         cli::Command::Run { .. } => {}
         cli::Command::Post { command } => {
             if let cli::PostCommand::Unify { keep } = command {
-                let dim = momentum_params.n.len();
-                momentum::post::vtk::momentum_unify(dim, keep);
+                if !freeze_momentum {
+                    let dim = momentum_params.n.len();
+                    momentum::post::vtk::momentum_unify(dim, keep);
+                };
                 passive_scalar_unify(passive_scalar_params.scalar_name, keep);
             }
         }
@@ -148,6 +154,7 @@ pub(crate) fn post_vtk_vec(
     momentum_params: momentum::Parameters,
     passive_scalar_params_vec: Vec<passive_scalar::Parameters>,
 ) {
+    let freeze_momentum = cli_args.get_freeze_momentum();
     match cli_args.command {
         cli::Command::Run { .. } => {}
         cli::Command::Post { command } => {
@@ -160,14 +167,16 @@ pub(crate) fn post_vtk_vec(
                 let n = momentum_params.n.clone();
                 let dim = n.len();
                 let (_, coordinates, node_types) = momentum::post::vtk::read_coordinates_file(dim);
-                let conversion_factor = momentum::ConversionFactor::from(momentum_params);
                 momentum::post::vtk::node_type_vtk(&n, &coordinates, &node_types, node_type);
-                momentum::post::vtk::momentum_vtk(
-                    &conversion_factor,
-                    &n,
-                    &coordinates,
-                    physical_data,
-                );
+                if !freeze_momentum {
+                    let conversion_factor = momentum::ConversionFactor::from(momentum_params);
+                    momentum::post::vtk::momentum_vtk(
+                        &conversion_factor,
+                        &n,
+                        &coordinates,
+                        physical_data,
+                    );
+                };
                 passive_scalar_vtk_vec(
                     &passive_scalar_params_vec
                         .iter()
@@ -184,12 +193,15 @@ pub(crate) fn post_unify_vec(
     momentum_params: momentum::Parameters,
     passive_scalar_params_vec: Vec<passive_scalar::Parameters>,
 ) {
+    let freeze_momentum = cli_args.get_freeze_momentum();
     match cli_args.command {
         cli::Command::Run { .. } => {}
         cli::Command::Post { command } => {
             if let cli::PostCommand::Unify { keep } = command {
-                let dim = momentum_params.n.len();
-                momentum::post::vtk::momentum_unify(dim, keep);
+                if !freeze_momentum {
+                    let dim = momentum_params.n.len();
+                    momentum::post::vtk::momentum_unify(dim, keep);
+                };
                 passive_scalar_unify_vec(
                     &passive_scalar_params_vec
                         .iter()

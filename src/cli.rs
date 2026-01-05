@@ -37,6 +37,9 @@ pub(crate) struct Cli {
     /// Explicit CPU list, e.g.: "0-3,8,10-12" (overrides core-start/core-count)
     #[arg(long = "cores", value_name = "LIST", global = true)]
     pub(crate) cores_list: Option<String>,
+    /// Freeze the momentum field calculation and post-processing
+    #[arg(short, long = "freeze-momentum", alias = "freeze", global = true)]
+    freeze_momentum: bool,
     #[command(subcommand)]
     pub(crate) command: Command,
 }
@@ -49,10 +52,10 @@ impl Default for Cli {
             core_start: 0,
             core_count: None,
             cores_list: None,
+            freeze_momentum: false,
             command: Command::Run {
                 write_data: WRITE_DATA,
                 max_iterations: MAX_ITERATIONS,
-                freeze_momentum: false,
             },
         }
     }
@@ -78,12 +81,7 @@ impl Cli {
     }
 
     pub(crate) fn get_freeze_momentum(&self) -> bool {
-        match self.command {
-            Command::Run {
-                freeze_momentum, ..
-            } => freeze_momentum,
-            Command::Post { .. } => false,
-        }
+        self.freeze_momentum
     }
 }
 
@@ -106,9 +104,6 @@ pub(crate) enum Command {
             default_value_t = MAX_ITERATIONS,
         )]
         max_iterations: usize,
-        /// Freeze the momentum field calculation
-        #[arg(short, long = "freeze")]
-        freeze_momentum: bool,
     },
     /// Post-process the simulation data
     Post {
@@ -122,7 +117,6 @@ impl Default for Command {
         Self::Run {
             write_data: 100,
             max_iterations: 100_000,
-            freeze_momentum: false,
         }
     }
 }

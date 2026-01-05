@@ -162,6 +162,7 @@ mod tests {
             NodeType::Fluid,
             vec![0, 5],
             vec![0.005, 0.055],
+            false,
             Arc::new(momentum::node::Parameters::test_default(2)),
         );
         node.set_f(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
@@ -184,6 +185,7 @@ mod tests {
             NodeType::Fluid,
             vec![9, 5],
             vec![0.095, 0.055],
+            false,
             Arc::new(momentum::node::Parameters::test_default(2)),
         );
         node.set_f(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
@@ -206,6 +208,7 @@ mod tests {
             NodeType::Fluid,
             vec![9, 5],
             vec![0.095, 0.055],
+            false,
             Arc::new(momentum::node::Parameters::test_default(2)),
         );
         node.set_f(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
@@ -228,6 +231,7 @@ mod tests {
             NodeType::Fluid,
             vec![9, 5],
             vec![0.095, 0.055],
+            false,
             Arc::new(momentum::node::Parameters::test_default(2)),
         );
         node.set_f(vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
